@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import './index.css'
 import Home from './pages/Home.jsx'
 import Game from './pages/Game.jsx'
+import Workshop from './pages/Workshop.jsx'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
@@ -11,6 +12,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/jatek/:code" element={<Game />} />
+        <Route path="/muhely" element={<Workshop />} />
       </Routes>
     </BrowserRouter>
   </React.StrictMode>

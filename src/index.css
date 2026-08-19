@@ -380,3 +380,77 @@ input.code-input {
 }
 .action-grid { display: flex; gap: 10px; }
 .action-grid button { flex: 1; padding: 16px 10px; }
+
+/* ================= 5B. FÁZIS: MŰHELY ================= */
+.result-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  font-weight: 400;
+  font-size: 0.95rem;
+  padding: 12px 14px;
+}
+.swatch-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+  gap: 8px;
+}
+.swatch-pick {
+  height: 40px;
+  border-radius: 9px;
+  border: 2px solid var(--line);
+  padding: 0;
+}
+.swatch-pick.sel {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 2px var(--cyan);
+}
+
+/* nyomtatható kártya */
+.print-cards { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.print-card {
+  width: 6.5cm;
+  height: 6.5cm;
+  border-radius: 0.28cm;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  text-align: center;
+  padding: 0.5cm 0.35cm;
+  overflow: hidden;
+}
+.print-card .p-artist, .print-card .p-title {
+  font-weight: 700;
+  font-size: 0.42cm;
+  line-height: 1.2;
+}
+.print-card .p-year {
+  font-family: var(--font-display);
+  font-size: 1.15cm;
+}
+.print-card.back {
+  background: #0b0b0d;
+  position: relative;
+  justify-content: center;
+}
+.print-card.back .rings { position: absolute; inset: 0.18cm; }
+.print-card.back .qr {
+  width: 3.9cm;
+  height: 3.9cm;
+  border-radius: 0.2cm;
+}
+
+@media print {
+  body { background: #fff; }
+  body > #root > * { display: none !important; }
+  .modal-overlay { position: static; display: block; background: none; backdrop-filter: none; }
+  body:has(.print-area) > #root > * { display: block !important; }
+  .modal.print-area { border: none; background: none; max-width: none; padding: 0; }
+  .no-print { display: none !important; }
+  .print-cards { justify-content: flex-start; }
+}
