@@ -199,3 +199,12 @@ export async function setStatus(gameId, status) {
   const { error } = await supabase.from('games').update({ status }).eq('id', gameId)
   if (error) throw error
 }
+
+// Konkrét (beolvasott) lap játékba hozása
+export async function playCard(game, cardNumber) {
+  const { error } = await supabase
+    .from('games')
+    .update({ current_card: cardNumber, card_revealed: false, pending_slot: null })
+    .eq('id', game.id)
+  if (error) throw error
+}

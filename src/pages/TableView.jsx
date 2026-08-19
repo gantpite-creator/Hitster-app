@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { myTeam } from '../lib/session.js'
 import {
-  drawForTurn, setPendingSlot, revealPlacement, nextTurn, setStatus, getSong,
+  drawForTurn, playCard, setPendingSlot, revealPlacement, nextTurn, setStatus, getSong,
 } from '../lib/gameApi.js'
 import { titleMatches, artistMatches } from '../lib/match.js'
+import { useCardStyles } from '../lib/cardStyles.js'
+import ScannerModal from './ScannerModal.jsx'
+import PlayerPanel from './PlayerPanel.jsx'
 
 /* A kártyahát gyűrű-motívuma kicsiben */
 function BackArt() {
@@ -21,9 +24,13 @@ function BackArt() {
   )
 }
 
-function FrontFace({ song }) {
+function FrontFace({ song, styles }) {
+  const st = styles?.[song.style]
   return (
-    <div className="card card-front">
+    <div
+      className="card card-front"
+      style={{ background: st?.bg ?? 'var(--cyan)', color: st?.text_color ?? '#0b0b0d' }}
+    >
       <div className="artist">{song.artists}</div>
       <div className="year">{song.year}</div>
       <div className="title">{song.title}</div>
@@ -32,6 +39,7 @@ function FrontFace({ song }) {
 }
 
 export default function TableView({ game, teams, placements, admin }) {
+  const styles = useCardStyles()
   const current = teams.find((t) => t.id === game.current_team_id)
   const mineId = myTeam(game.id)
   const isMyTurn = mineId != null && mineId === game.current_team_id
@@ -110,6 +118,7 @@ export default function TableView({ game, teams, placements, admin }) {
   const [titleGuess, setTitleGuess] = useState('')
   const [artistGuess, setArtistGuess] = useState('')
   const [busy, setBusy] = useState(false)
+  const [scanning, setScanning] = useState(false)
   useEffect(() => {
     setTitleGuess('')
     setArtistGuess('')
@@ -144,7 +153,7 @@ export default function TableView({ game, teams, placements, admin }) {
       <div className={`flip flipped ${revealedRow.correct ? 'good' : 'bad'}`}>
         <div className="inner">
           <div className="face"><div className="card card-back static"><BackArt /></div></div>
-          <div className="face front"><FrontFace song={revealedRow.songs} /></div>
+          <div className="face front"><FrontFace song={revealedRow.songs} styles={styles} /></div>
         </div>
       </div>
     ) : (
@@ -193,6 +202,7 @@ export default function TableView({ game, teams, placements, admin }) {
             <FragmentPair
               key={p.id}
               song={p.songs}
+              styles={styles}
               idx={i + 1}
               hover={hoverSlot === i + 1}
               filled={slot === i + 1 && !drag}
@@ -211,10 +221,32 @@ export default function TableView({ game, teams, placements, admin }) {
       {/* ---- tálca / állapot ---- */}
       {waiting && (
         <div className="panel" style={{ textAlign: 'center', marginTop: 14 }}>
-          <p className="dim" style={{ margin: 0 }}>
-            {admin ? 'Húzz lapot vagy olvass be kártyát!' : 'A játékmester mindjárt indítja a zenét…'}
-          </p>
+          {admin ? (
+            <div className="action-grid">
+              <button className="primary" onClick={() => setScanning(true)}>
+                📷 Beolvasás
+              </button>
+              <button onClick={() => drawForTurn(game, placements)}>
+                🎲 Húzás a pakliból
+              </button>
+            </div>
+          ) : (
+            <p className="dim" style={{ margin: 0 }}>
+              A játékmester mindjárt indítja a zenét…
+            </p>
+          )}
         </div>
+      )}
+
+      {scanning && (
+        <ScannerModal
+          placements={placements}
+          onClose={() => setScanning(false)}
+          onPlay={async (song) => {
+            setScanning(false)
+            await playCard(game, song.card_number)
+          }}
+        />
       )}
 
       {placing && slot == null && (
@@ -264,20 +296,12 @@ export default function TableView({ game, teams, placements, admin }) {
       )}
 
       {/* ---- admin ---- */}
-      {admin && !waiting && !game.card_revealed && (
-        <AdminSecret cardNumber={game.current_card} />
-      )}
+      {admin && !waiting && <AdminPlayer cardNumber={game.current_card} />}
       {admin && (
         <div className="admin-bar">
-          {waiting ? (
-            <button className="primary" onClick={() => drawForTurn(game, placements)}>
-              Húzás a pakliból
-            </button>
-          ) : (
-            <button onClick={() => nextTurn(game, teams, placements)} disabled={!game.card_revealed}>
-              Következő kör
-            </button>
-          )}
+          <button onClick={() => nextTurn(game, teams, placements)} disabled={!game.card_revealed}>
+            Következő kör
+          </button>
           <button className="ghost" onClick={() => setStatus(game.id, game.status === 'paused' ? 'active' : 'paused')}>
             {game.status === 'paused' ? 'Folytatás' : 'Szünet'}
           </button>
@@ -307,30 +331,22 @@ function Gap({ idx, hover, filled, children }) {
   )
 }
 
-function FragmentPair({ song, idx, hover, filled, children }) {
+function FragmentPair({ song, styles, idx, hover, filled, children }) {
   return (
     <>
-      <FrontFace song={song} />
+      <FrontFace song={song} styles={styles} />
       <Gap idx={idx} hover={hover} filled={filled}>{children}</Gap>
     </>
   )
 }
 
-function AdminSecret({ cardNumber }) {
+function AdminPlayer({ cardNumber }) {
   const [song, setSong] = useState(null)
   useEffect(() => {
     let live = true
     getSong(cardNumber).then((s) => live && setSong(s))
     return () => { live = false }
   }, [cardNumber])
-  return (
-    <div className="secret">
-      <div className="label">Csak neked · #{cardNumber}</div>
-      {song ? (
-        <div style={{ marginTop: 4 }}>
-          <b>{song.artists}</b> – {song.title} <b>({song.year})</b>
-        </div>
-      ) : '…'}
-    </div>
-  )
+  if (!song) return null
+  return <PlayerPanel song={song} />
 }
