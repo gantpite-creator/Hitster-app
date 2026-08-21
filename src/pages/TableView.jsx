@@ -13,6 +13,30 @@ import PlayerPanel from './PlayerPanel.jsx'
 // A gyűrűszínek – a Folytatás gomb csóvájához és a landolás-effekthez
 const FX_COLORS = ['#e63946', '#2d7dd2', '#f77f00', '#ffd166', '#7b5ea7', '#00aeef']
 
+// Kanyargós fénycsík rajzolása egy fix pozíciójú rétegre
+function spawnStreak(layer, xc, y, opts = {}) {
+  if (!layer) return
+  const d = document.createElement('div')
+  d.className = 'fx-streak'
+  const h = 14 + Math.random() * 46
+  const w = 10 + Math.random() * 12
+  const sw = (1.6 + Math.random() * 2.4).toFixed(1)
+  const c = FX_COLORS[(Math.random() * FX_COLORS.length) | 0]
+  const x1 = (Math.random() * w).toFixed(1)
+  const x2 = (Math.random() * w).toFixed(1)
+  const xe = (w / 2 + (Math.random() * 6 - 3)).toFixed(1)
+  const path =
+    Math.random() < 0.45
+      ? `M ${(w / 2).toFixed(1)} 1 Q ${x1} ${(h / 2).toFixed(1)} ${xe} ${(h - 1).toFixed(1)}`
+      : `M ${(w / 2).toFixed(1)} 1 C ${x1} ${(h * 0.33).toFixed(1)}, ${x2} ${(h * 0.66).toFixed(1)}, ${xe} ${(h - 1).toFixed(1)}`
+  const rot = opts.rotate != null ? ` style="transform: rotate(${opts.rotate.toFixed(0)}deg)"` : ''
+  d.innerHTML = `<svg width="${w.toFixed(0)}" height="${h.toFixed(0)}" viewBox="0 0 ${w.toFixed(0)} ${h.toFixed(0)}"${rot}><path d="${path}" stroke="${c}" stroke-width="${sw}" fill="none" stroke-linecap="round"/></svg>`
+  d.style.left = `${xc - w / 2}px`
+  d.style.top = opts.mode === 'up' ? `${y - h + 3}px` : opts.mode === 'center' ? `${y - h / 2}px` : `${y - 3}px`
+  layer.appendChild(d)
+  setTimeout(() => d.remove(), 980)
+}
+
 /* A kártyahát gyűrű-motívuma kicsiben */
 function BackArt() {
   return (
@@ -90,13 +114,41 @@ export default function TableView({ game, teams, placements, admin }) {
     return best ? best.idx : null
   }
 
+  const panStrip = (e) => {
+    if (e.pointerType !== 'mouse') return // mobilon a natív görgetés intézi
+    if (e.target.closest('.card-back') && !e.target.closest('.card-back.static')) return
+    const strip = stripRef.current
+    const sx = e.clientX
+    const sl = strip.scrollLeft
+    const move = (ev) => { strip.scrollLeft = sl - (ev.clientX - sx) }
+    const up = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+  }
+
   const startDrag = (e) => {
     if (!isMyTurn || game.card_revealed) return
     e.preventDefault()
+    const noFx = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    let lastPos = { x: e.clientX, y: e.clientY }
+    let lastFx = 0
     const move = (ev) => {
       const x = ev.clientX, y = ev.clientY
       setDrag({ x, y })
       setHoverSlot(nearestGap(x, y))
+      if (!noFx && ev.timeStamp - lastFx > 30) {
+        const dx = x - lastPos.x
+        const dy = y - lastPos.y
+        if (Math.hypot(dx, dy) > 4) {
+          const ang = (Math.atan2(dy, dx) * 180) / Math.PI + 90
+          spawnStreak(tableFxRef.current, x - dx * 1.6, y - dy * 1.6, { mode: 'center', rotate: ang })
+          lastFx = ev.timeStamp
+        }
+      }
+      lastPos = { x, y }
       const strip = stripRef.current
       if (strip) {
         const r = strip.getBoundingClientRect()
@@ -137,6 +189,7 @@ export default function TableView({ game, teams, placements, admin }) {
 
   /* ---- Folytatás-gomb csóva + landolás-effekt ---- */
   const fxRef = useRef(null)
+  const tableFxRef = useRef(null)
   const resumeRef = useRef(null)
   const prevPausedRef = useRef(game.status === 'paused')
 
@@ -155,24 +208,9 @@ export default function TableView({ game, teams, placements, admin }) {
       if (now - last > 26) {
         last = now
         const r = btn.getBoundingClientRect()
-        const d = document.createElement('div')
-        d.className = 'fx-streak'
-        const h = 14 + Math.random() * 46
-        const w = 10 + Math.random() * 12
-        const sw = (1.6 + Math.random() * 2.4).toFixed(1)
-        const c = FX_COLORS[(Math.random() * FX_COLORS.length) | 0]
-        const x1 = (Math.random() * w).toFixed(1)
-        const x2 = (Math.random() * w).toFixed(1)
-        const xe = (w / 2 + (Math.random() * 6 - 3)).toFixed(1)
-        const path =
-          Math.random() < 0.45
-            ? `M ${(w / 2).toFixed(1)} 1 Q ${x1} ${(h / 2).toFixed(1)} ${xe} ${(h - 1).toFixed(1)}`
-            : `M ${(w / 2).toFixed(1)} 1 C ${x1} ${(h * 0.33).toFixed(1)}, ${x2} ${(h * 0.66).toFixed(1)}, ${xe} ${(h - 1).toFixed(1)}`
-        d.innerHTML = `<svg width="${w.toFixed(0)}" height="${h.toFixed(0)}" viewBox="0 0 ${w.toFixed(0)} ${h.toFixed(0)}"><path d="${path}" stroke="${c}" stroke-width="${sw}" fill="none" stroke-linecap="round"/></svg>`
-        d.style.left = `${r.left + Math.random() * r.width - w / 2}px`
-        d.style.top = `${paused ? r.bottom - 3 : r.top - h + 3}px`
-        layer.appendChild(d)
-        setTimeout(() => d.remove(), 980)
+        const xc = r.left + Math.random() * r.width
+        if (paused) spawnStreak(layer, xc, r.bottom, { mode: 'down' })
+        else spawnStreak(layer, xc, r.top, { mode: 'up' })
       }
       if (now - t0 < 1240) raf = requestAnimationFrame(tick)
     }
@@ -180,30 +218,7 @@ export default function TableView({ game, teams, placements, admin }) {
     return () => cancelAnimationFrame(raf)
   }, [game.status])
 
-  useEffect(() => {
-    const btn = resumeRef.current
-    const layer = fxRef.current
-    if (!btn || !layer) return
-    const onEnd = (e) => {
-      if (e.target !== btn || e.propertyName !== 'transform') return
-      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-      const r = btn.getBoundingClientRect()
-      ;[r.top - 1, r.bottom - 2].forEach((y) => {
-        ;['left', 'right'].forEach((side) => {
-          const d = document.createElement('div')
-          d.className = `fx-sweep ${side}`
-          d.style.top = `${y}px`
-          d.style.left = side === 'left' ? `${r.left}px` : `${r.left + r.width / 2}px`
-          d.style.width = `${r.width / 2}px`
-          d.style.background = FX_COLORS[(Math.random() * FX_COLORS.length) | 0]
-          layer.appendChild(d)
-          setTimeout(() => d.remove(), 800)
-        })
-      })
-    }
-    btn.addEventListener('transitionend', onEnd)
-    return () => btn.removeEventListener('transitionend', onEnd)
-  }, [game.status])
+
   useEffect(() => {
     setTitleGuess('')
     setArtistGuess('')
@@ -287,7 +302,12 @@ export default function TableView({ game, teams, placements, admin }) {
 
       {/* ---- idővonal ---- */}
       <div className="strip-wrap">
-        <div className="strip" ref={stripRef}>
+        <div
+          className="strip"
+          ref={stripRef}
+          onPointerDown={panStrip}
+          onWheel={(e) => { stripRef.current.scrollLeft += e.deltaY }}
+        >
           <Gap idx={0} hover={hoverSlot === 0} filled={slot === 0 && !drag}>
             {slot === 0 && !drag ? pendingCard(isMyTurn) : null}
           </Gap>
@@ -419,6 +439,8 @@ export default function TableView({ game, teams, placements, admin }) {
         onConfirm={() => { setConfirmEnd(false); setStatus(game.id, 'finished') }}
         onCancel={() => setConfirmEnd(false)}
       />
+
+      <div className="table-fx" ref={tableFxRef} />
 
       {/* húzás közbeni "szellem" kártya az ujj alatt */}
       {drag && (

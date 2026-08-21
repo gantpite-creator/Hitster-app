@@ -245,7 +245,7 @@ input.code-input {
   touch-action: none;
   cursor: grab;
 }
-.card-back svg { width: 78%; height: 78%; }
+.card-back svg { width: 78%; height: 78%; animation: spin 20s linear infinite; }
 .card-back.static { cursor: default; }
 
 /* ---- flip ---- */
@@ -587,20 +587,6 @@ input.code-input {
   60% { opacity: 0.55; }
   100% { opacity: 0; transform: scaleY(0.2); filter: blur(1.5px); }
 }
-.fx-sweep {
-  position: fixed;
-  height: 3px;
-  border-radius: 2px;
-  pointer-events: none;
-  animation: fxSweep 0.75s cubic-bezier(0.2, 0.75, 0.3, 1) forwards;
-}
-.fx-sweep.left { transform-origin: right center; }
-.fx-sweep.right { transform-origin: left center; }
-@keyframes fxSweep {
-  0% { transform: scaleX(0); opacity: 1; }
-  75% { opacity: 0.85; }
-  100% { transform: scaleX(1); opacity: 0; }
-}
 @media (prefers-reduced-motion: reduce) {
   .confirm-rings { animation: none; }
 }
@@ -611,7 +597,8 @@ input.code-input {
   inherits: false;
   initial-value: 0deg;
 }
-button, .turn-banner, .score-pill { position: relative; } /* a fény a SAJÁT szélükhöz tapad */
+button, .turn-banner, .score-pill, .card-back { position: relative; } /* a fény a SAJÁT szélükhöz tapad */
+.card-back { --orbit: #00aeef; }
 button { --orbit: #00aeef; }         /* világos gombon cián fut körbe */
 button.primary { --orbit: #ff9838; } /* ciánon a komplementer narancs */
 button.danger { --orbit: #ffd166; }  /* piroson meleg arany */
@@ -619,7 +606,8 @@ button.ghost { --orbit: #00aeef; }
 
 button::after,
 .turn-banner::after,
-.score-pill::after {
+.score-pill::after,
+.card-back::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -659,6 +647,18 @@ button:disabled::after { opacity: 0; }
 @media (prefers-reduced-motion: reduce) {
   button::after,
 .turn-banner::after,
-.score-pill::after { animation: none; }
+.score-pill::after,
+.card-back::after { animation: none; }
   .next-btn.ready { animation: none; }
 }
+
+
+/* ================= ASZTALI FX + HÚZHATÓ SÁV ================= */
+.table-fx {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 55; /* a kártyák fölött, a húzott "szellem" alatt */
+}
+.strip { cursor: grab; }
+.strip:active { cursor: grabbing; }
