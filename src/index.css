@@ -822,3 +822,20 @@ button:disabled::after { opacity: 0; }
   .bg-rings { display: none; }
   .flip.shaking, .flip.shaking .face.front { animation: none; }
 }
+
+/* ================= SZÉP LETEVÉS ================= */
+/* elengedés után a szellem-kártya a horgonyához repül, közben kisimul */
+.drag-ghost.flying {
+  transition: transform 0.32s cubic-bezier(0.3, 1.05, 0.35, 1);
+  transform: translate(calc(-50% + var(--fdx)), calc(-60% + var(--fdy))) scale(1) rotate(0deg);
+}
+/* a résbe érkező lap apró "letevés" pattanása */
+.placed-pop { animation: placePop 0.28s cubic-bezier(0.34, 1.4, 0.45, 1); }
+@keyframes placePop {
+  0% { transform: scale(1.12) translateY(-6px); }
+  100% { transform: scale(1) translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .drag-ghost.flying { transition: none; }
+  .placed-pop { animation: none; }
+}

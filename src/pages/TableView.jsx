@@ -172,8 +172,11 @@ export default function TableView({ game, teams, placements, admin }) {
   /* ---- húzás ---- */
   const stripRef = useRef(null)
   const [drag, setDrag] = useState(null)          // {x, y} húzás közben
+  const [flight, setFlight] = useState(null)      // elengedés utáni "odarepülés"
   const [hoverSlot, setHoverSlot] = useState(null)
-  const slot = game.pending_slot                   // szinkronizált lehelyezés
+  const [localSlot, setLocalSlot] = useState(game.pending_slot)
+  useEffect(() => { setLocalSlot(game.pending_slot) }, [game.pending_slot, game.current_card])
+  const slot = localSlot                           // azonnali (optimista) lehelyezés
 
   const nearestGap = (x, y) => {
     const strip = stripRef.current
@@ -231,14 +234,34 @@ export default function TableView({ game, teams, placements, admin }) {
         else if (x > r.right - 56) strip.scrollLeft += 11
       }
     }
-    const up = async (ev) => {
+    const up = (ev) => {
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', up)
       const target = nearestGap(ev.clientX, ev.clientY)
-      setDrag(null)
       setHoverSlot(null)
-      if (target != null && target !== slot) {
-        await setPendingSlot(game.id, target)
+      if (target != null) {
+        setDrag(null)
+        setLocalSlot(target) // azonnal a helyére, nem várunk a szerverre
+        if (target !== slot) {
+          setPendingSlot(game.id, target).catch(() => setLocalSlot(game.pending_slot))
+        }
+      } else if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        setDrag(null)
+      } else {
+        // nincs cél: a lap szépen visszarepül oda, ahonnan felvették
+        const anchor = document.querySelector('.pending-anchor')
+        if (!anchor) {
+          setDrag(null)
+          return
+        }
+        const r = anchor.getBoundingClientRect()
+        setDrag(null)
+        setFlight({
+          x: ev.clientX,
+          y: ev.clientY,
+          dx: r.left + r.width / 2 - ev.clientX,
+          dy: r.top + r.height / 2 - ev.clientY,
+        })
       }
     }
     window.addEventListener('pointermove', move)
@@ -388,7 +411,7 @@ export default function TableView({ game, teams, placements, admin }) {
   const placing = !waiting && !game.card_revealed
   const revealed = !waiting && game.card_revealed && revealedRow
 
-  const pendingCard = (interactive) =>
+  const pendingCard = (interactive, inGap = false) =>
     revealed ? (
       <div
         ref={revealFlipRef}
@@ -402,9 +425,9 @@ export default function TableView({ game, teams, placements, admin }) {
       </div>
     ) : (
       <div
-        className={`card card-back ${interactive ? '' : 'static'}`}
+        className={`card card-back pending-anchor ${inGap ? 'placed-pop' : ''} ${interactive ? '' : 'static'}`}
         onPointerDown={interactive ? startDrag : undefined}
-        style={drag ? { opacity: 0.25 } : undefined}
+        style={drag || flight ? { opacity: 0.25 } : undefined}
       >
         <BackArt />
       </div>
@@ -454,13 +477,13 @@ export default function TableView({ game, teams, placements, admin }) {
           onWheel={(e) => { stripRef.current.scrollLeft += e.deltaY }}
         >
           <Gap idx={0} hover={hoverSlot === 0} filled={slot === 0 && !drag}>
-            {slot === 0 && !drag ? pendingCard(isMyTurn) : null}
+            {slot === 0 && !drag ? pendingCard(isMyTurn, true) : null}
           </Gap>
           {groups.map((grp, i) => (
             <Fragment key={grp.cards[0].id}>
               <CardStack cards={grp.cards} styles={styles} onZoom={setZoomCards} />
               <Gap idx={i + 1} hover={hoverSlot === i + 1} filled={slot === i + 1 && !drag}>
-                {slot === i + 1 && !drag ? pendingCard(isMyTurn) : null}
+                {slot === i + 1 && !drag ? pendingCard(isMyTurn, true) : null}
               </Gap>
             </Fragment>
           ))}
@@ -604,8 +627,16 @@ export default function TableView({ game, teams, placements, admin }) {
       <div className="table-fx" ref={tableFxRef} />
 
       {/* húzás közbeni "szellem" kártya az ujj alatt */}
-      {drag && (
-        <div className="drag-ghost" style={{ left: drag.x, top: drag.y }}>
+      {(drag || flight) && (
+        <div
+          className={`drag-ghost ${flight ? 'flying' : ''}`}
+          style={
+            flight
+              ? { left: flight.x, top: flight.y, '--fdx': `${flight.dx}px`, '--fdy': `${flight.dy}px` }
+              : { left: drag.x, top: drag.y }
+          }
+          onTransitionEnd={() => setFlight(null)}
+        >
           <div className="card card-back"><BackArt /></div>
         </div>
       )}
