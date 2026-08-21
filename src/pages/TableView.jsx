@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { myTeam } from '../lib/session.js'
 import {
   drawForTurn, playCard, setPendingSlot, revealPlacement, nextTurn, setStatus, getSong,
@@ -77,13 +77,21 @@ export default function TableView({ game, teams, placements, admin }) {
   const revealedRow = placements.find((p) => p.card_number === game.current_card)
 
   // a soron lévő csapat idővonala, az aktuális lap nélkül, év szerint
-  const timeline = useMemo(
-    () =>
-      placements
-        .filter((p) => p.team_id === game.current_team_id && p.correct && p.card_number !== game.current_card)
-        .sort((a, b) => a.songs.year - b.songs.year || a.songs.card_number - b.songs.card_number),
-    [placements, game.current_team_id, game.current_card]
-  )
+  const groups = useMemo(() => {
+    const flat = placements
+      .filter((p) => p.team_id === game.current_team_id && p.correct && p.card_number !== game.current_card)
+      .sort(
+        (a, b) =>
+          a.songs.year - b.songs.year || new Date(a.created_at) - new Date(b.created_at)
+      )
+    const g = []
+    for (const pl of flat) {
+      const last = g[g.length - 1]
+      if (last && last.year === pl.songs.year) last.cards.push(pl)
+      else g.push({ year: pl.songs.year, cards: [pl] })
+    }
+    return g
+  }, [placements, game.current_team_id, game.current_card])
 
   const scores = useMemo(() => {
     const m = {}
@@ -177,6 +185,7 @@ export default function TableView({ game, teams, placements, admin }) {
   const [busy, setBusy] = useState(false)
   const [scanning, setScanning] = useState(false)
   const [confirmEnd, setConfirmEnd] = useState(false)
+  const [zoomCards, setZoomCards] = useState(null)
   const [pauseBtnHidden, setPauseBtnHidden] = useState(game.status === 'paused')
   useEffect(() => {
     if (game.status === 'paused') {
@@ -229,8 +238,8 @@ export default function TableView({ game, teams, placements, admin }) {
     setBusy(true)
     try {
       const song = await getSong(game.current_card)
-      const left = timeline[slot - 1]?.songs.year
-      const right = timeline[slot]?.songs.year
+      const left = groups[slot - 1]?.year
+      const right = groups[slot]?.year
       const correct =
         (left == null || song.year >= left) && (right == null || song.year <= right)
       await revealPlacement(game, current, song, {
@@ -250,7 +259,10 @@ export default function TableView({ game, teams, placements, admin }) {
 
   const pendingCard = (interactive) =>
     revealed ? (
-      <div className={`flip flipped ${revealedRow.correct ? 'good' : 'bad'}`}>
+      <div
+        className={`flip flipped zoomable ${revealedRow.correct ? 'good' : 'bad'}`}
+        onClick={() => setZoomCards([revealedRow])}
+      >
         <div className="inner">
           <div className="face"><div className="card card-back static"><BackArt /></div></div>
           <div className="face front"><FrontFace song={revealedRow.songs} styles={styles} /></div>
@@ -311,21 +323,17 @@ export default function TableView({ game, teams, placements, admin }) {
           <Gap idx={0} hover={hoverSlot === 0} filled={slot === 0 && !drag}>
             {slot === 0 && !drag ? pendingCard(isMyTurn) : null}
           </Gap>
-          {timeline.map((p, i) => (
-            <FragmentPair
-              key={p.id}
-              song={p.songs}
-              styles={styles}
-              idx={i + 1}
-              hover={hoverSlot === i + 1}
-              filled={slot === i + 1 && !drag}
-            >
-              {slot === i + 1 && !drag ? pendingCard(isMyTurn) : null}
-            </FragmentPair>
+          {groups.map((grp, i) => (
+            <Fragment key={grp.cards[0].id}>
+              <CardStack cards={grp.cards} styles={styles} onZoom={setZoomCards} />
+              <Gap idx={i + 1} hover={hoverSlot === i + 1} filled={slot === i + 1 && !drag}>
+                {slot === i + 1 && !drag ? pendingCard(isMyTurn) : null}
+              </Gap>
+            </Fragment>
           ))}
         </div>
         <p className="timeline-hint">
-          {timeline.length === 0
+          {groups.length === 0
             ? 'Az első lap bárhova tehető'
             : '← régebbi · újabb →'}
         </p>
@@ -440,6 +448,23 @@ export default function TableView({ game, teams, placements, admin }) {
         onCancel={() => setConfirmEnd(false)}
       />
 
+      {zoomCards && (
+        <div className="zoom-overlay" onClick={() => setZoomCards(null)}>
+          <div className="zoom-grid">
+            {zoomCards.map((p, i) => (
+              <div
+                key={p.id}
+                className="zoom-slot"
+                style={{ transform: `rotate(${(i - (zoomCards.length - 1) / 2) * 3}deg)` }}
+              >
+                <FrontFace song={p.songs} styles={styles} />
+              </div>
+            ))}
+          </div>
+          <p className="dim small" style={{ textAlign: 'center' }}>Koppints bárhova a bezáráshoz</p>
+        </div>
+      )}
+
       <div className="table-fx" ref={tableFxRef} />
 
       {/* húzás közbeni "szellem" kártya az ujj alatt */}
@@ -460,12 +485,30 @@ function Gap({ idx, hover, filled, children }) {
   )
 }
 
-function FragmentPair({ song, styles, idx, hover, filled, children }) {
+// Azonos évszámú lapok paklija: enyhén elcsúsztatva, srégen egymáson
+function CardStack({ cards, styles, onZoom }) {
+  const n = cards.length
   return (
-    <>
-      <FrontFace song={song} styles={styles} />
-      <Gap idx={idx} hover={hover} filled={filled}>{children}</Gap>
-    </>
+    <div
+      className="card-stack"
+      style={{ width: 96 + (n - 1) * 13, height: 120 + (n - 1) * 11 }}
+      onClick={() => onZoom(cards)}
+    >
+      {cards.map((p, i) => (
+        <div
+          key={p.id}
+          className="stack-item"
+          style={{
+            left: i * 13,
+            top: i * 11,
+            zIndex: i,
+            transform: i === 0 ? 'none' : `rotate(${i % 2 ? 4 : -3}deg)`,
+          }}
+        >
+          <FrontFace song={p.songs} styles={styles} />
+        </div>
+      ))}
+    </div>
   )
 }
 
