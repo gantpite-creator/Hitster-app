@@ -71,7 +71,8 @@ export default function TableView({ game, teams, placements, admin }) {
   const styles = useCardStyles()
   const current = teams.find((t) => t.id === game.current_team_id)
   const mineId = myTeam(game.id)
-  const isMyTurn = mineId != null && mineId === game.current_team_id
+  // A mester sosem játékos: mesteri fülön a csapattagság nem ad húzási jogot
+  const isMyTurn = !admin && mineId != null && mineId === game.current_team_id
 
   // az épp játékban lévő lap már beírt sora (felfordítás után létezik)
   const revealedRow = placements.find((p) => p.card_number === game.current_card)

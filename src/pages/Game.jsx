@@ -36,7 +36,7 @@ export default function Game() {
 function Lobby({ game, teams, members, admin }) {
   const [name, setName] = useState('')
   const [busy, setBusy] = useState(false)
-  const mine = myTeam(game.id)
+  const mine = admin ? null : myTeam(game.id) // mesteri fülön a tagság nem számít
   const counts = {}
   members.forEach((m) => { counts[m.team_id] = (counts[m.team_id] ?? 0) + 1 })
 
