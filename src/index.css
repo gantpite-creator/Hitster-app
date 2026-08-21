@@ -470,11 +470,16 @@ input.code-input {
 .pause-overlay {
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.35s ease;
+  transition: opacity 0.9s ease; /* kifelé: lassan enged el */
 }
 .pause-overlay.show {
   opacity: 1;
   pointer-events: auto;
+  transition: opacity 0.35s ease; /* befelé: gyorsan sötétül */
+}
+.pause-content {
+  position: relative;
+  z-index: 1; /* a csíkok a gomb MÖGÖTT úsznak és ott is tűnnek el */
 }
 .pause-title {
   transform: translateY(10px);
@@ -487,7 +492,7 @@ input.code-input {
   margin-top: 18px;
   transform: translateY(44vh);
   opacity: 0;
-  transition: transform 0.55s cubic-bezier(0.28, 1.12, 0.32, 1), opacity 0.3s ease;
+  transition: transform 1.25s cubic-bezier(0.32, 1.04, 0.35, 1), opacity 0.5s ease;
 }
 .pause-overlay.show .pause-resume {
   transform: translateY(0);
@@ -565,23 +570,25 @@ input.code-input {
   inset: 0;
   pointer-events: none;
 }
+.fx-layer { z-index: 0; }
 .fx-streak {
   position: fixed;
   width: 3px;
   border-radius: 2px;
   pointer-events: none;
-  animation: fxStreak 0.5s ease-out forwards;
+  animation: fxStreak 0.95s cubic-bezier(0.4, 0, 0.55, 1) forwards;
 }
 @keyframes fxStreak {
-  from { opacity: 0.95; }
-  to { opacity: 0; }
+  0% { opacity: 0.95; transform: scaleY(1); filter: blur(0); }
+  60% { opacity: 0.55; }
+  100% { opacity: 0; transform: scaleY(0.2); filter: blur(1.5px); }
 }
 .fx-sweep {
   position: fixed;
   height: 3px;
   border-radius: 2px;
   pointer-events: none;
-  animation: fxSweep 0.55s cubic-bezier(0.2, 0.75, 0.3, 1) forwards;
+  animation: fxSweep 0.75s cubic-bezier(0.2, 0.75, 0.3, 1) forwards;
 }
 .fx-sweep.left { transform-origin: right center; }
 .fx-sweep.right { transform-origin: left center; }

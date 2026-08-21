@@ -153,9 +153,9 @@ export default function TableView({ game, teams, placements, admin }) {
         d.style.height = `${h}px`
         d.style.background = FX_COLORS[(Math.random() * FX_COLORS.length) | 0]
         layer.appendChild(d)
-        setTimeout(() => d.remove(), 520)
+        setTimeout(() => d.remove(), 980)
       }
-      if (now - t0 < 580) raf = requestAnimationFrame(tick)
+      if (now - t0 < 1240) raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
@@ -179,7 +179,7 @@ export default function TableView({ game, teams, placements, admin }) {
           d.style.width = `${r.width / 2}px`
           d.style.background = FX_COLORS[(Math.random() * FX_COLORS.length) | 0]
           layer.appendChild(d)
-          setTimeout(() => d.remove(), 620)
+          setTimeout(() => d.remove(), 800)
         })
       })
     }
@@ -236,7 +236,7 @@ export default function TableView({ game, teams, placements, admin }) {
   return (
     <div className="shell">
       <div className={`pause-overlay ${game.status === 'paused' ? 'show' : ''}`}>
-        <div style={{ textAlign: 'center' }}>
+        <div className="pause-content" style={{ textAlign: 'center' }}>
           <div className="display pause-title">SZÜNET</div>
           <p className="dim pause-title">A játékmester megállította a játékot</p>
           {admin && (
