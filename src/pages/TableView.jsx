@@ -44,53 +44,63 @@ function spawnStreak(layer, xc, y, opts = {}) {
   setTimeout(() => d.remove(), 980)
 }
 
-// Jó helyezés: diadal-konfetti felfelé, félkörívben.
-// Rossz helyezés: "kieresztett lufi" – lefelé szállingózó, kunkorodó vonalak.
-function spawnBurst(layer, rect, correct) {
+// Diadal-konfetti felfelé, félkörívben (csak jó helyezésnél)
+function spawnBurst(layer, rect) {
   if (!layer) return
   const cx = rect.left + rect.width / 2
   const cy = rect.top + rect.height / 2
-  if (correct) {
-    const n = 16
-    for (let i = 0; i < n; i++) {
-      const a = Math.PI + (i / (n - 1)) * Math.PI + (Math.random() - 0.5) * 0.24
-      const { w, h, svg } = buildStreak()
-      const d = document.createElement('div')
-      d.className = 'fx-burst'
-      d.innerHTML = svg
-      d.style.left = `${cx + Math.cos(a) * (rect.width / 2) - w / 2}px`
-      d.style.top = `${cy + Math.sin(a) * (rect.height / 2) - h / 2}px`
-      const dist = 55 + Math.random() * 90
-      d.style.setProperty('--tx', `${(Math.cos(a) * dist).toFixed(0)}px`)
-      d.style.setProperty('--ty', `${(Math.sin(a) * dist).toFixed(0)}px`)
-      d.style.setProperty('--rot', `${((a * 180) / Math.PI - 90).toFixed(0)}deg`)
-      d.style.animationDuration = `${(0.6 + Math.random() * 0.45).toFixed(2)}s`
-      layer.appendChild(d)
-      setTimeout(() => d.remove(), 1150)
-    }
-  } else {
-    const n = 13
-    for (let i = 0; i < n; i++) {
-      // indulás az alsó félkerület mentén
-      const pa = (i / (n - 1)) * Math.PI + (Math.random() - 0.5) * 0.2
-      const { w, h, svg } = buildStreak()
-      const d = document.createElement('div')
-      d.className = 'fx-sad'
-      d.innerHTML = svg
-      d.style.left = `${cx + Math.cos(pa) * (rect.width / 2) - w / 2}px`
-      d.style.top = `${cy + Math.sin(pa) * (rect.height / 2) - h / 2}px`
-      // mozgás: szinte csak lefelé, kis oldalirányú imbolygással
-      const ma = Math.PI / 2 + (Math.random() - 0.5) * 0.7
-      const dist = 90 + Math.random() * 85
-      d.style.setProperty('--tx', `${(Math.cos(ma) * dist * 0.4).toFixed(0)}px`)
-      d.style.setProperty('--ty', `${(Math.sin(ma) * dist).toFixed(0)}px`)
-      d.style.setProperty('--sway', `${(Math.random() * 26 - 13).toFixed(0)}px`)
-      d.style.setProperty('--rot', `${((ma * 180) / Math.PI - 90).toFixed(0)}deg`)
-      d.style.animationDuration = `${(1.15 + Math.random() * 0.6).toFixed(2)}s`
-      layer.appendChild(d)
-      setTimeout(() => d.remove(), 2000)
-    }
+  const n = 16
+  for (let i = 0; i < n; i++) {
+    const a = Math.PI + (i / (n - 1)) * Math.PI + (Math.random() - 0.5) * 0.24
+    const { w, h, svg } = buildStreak()
+    const d = document.createElement('div')
+    d.className = 'fx-burst'
+    d.innerHTML = svg
+    d.style.left = `${cx + Math.cos(a) * (rect.width / 2) - w / 2}px`
+    d.style.top = `${cy + Math.sin(a) * (rect.height / 2) - h / 2}px`
+    const dist = 55 + Math.random() * 90
+    d.style.setProperty('--tx', `${(Math.cos(a) * dist).toFixed(0)}px`)
+    d.style.setProperty('--ty', `${(Math.sin(a) * dist).toFixed(0)}px`)
+    d.style.setProperty('--rot', `${((a * 180) / Math.PI - 90).toFixed(0)}deg`)
+    d.style.animationDuration = `${(0.6 + Math.random() * 0.45).toFixed(2)}s`
+    layer.appendChild(d)
+    setTimeout(() => d.remove(), 1150)
   }
+}
+
+// Lebegő háttér-gyűrűk: halványan úsznak srégen jobbra-fel, alulról újratöltődve
+function RingField() {
+  const rings = useMemo(
+    () =>
+      Array.from({ length: 12 }, (_, i) => ({
+        id: i,
+        left: Math.random() * 110 - 15,
+        size: 60 + Math.random() * 130,
+        opacity: 0.05 + Math.random() * 0.08,
+        dur: 34 + Math.random() * 36,
+        delay: -Math.random() * 70,
+      })),
+    []
+  )
+  return (
+    <div className="bg-rings" aria-hidden="true">
+      {rings.map((r) => (
+        <span
+          key={r.id}
+          style={{
+            left: `${r.left}%`,
+            width: r.size,
+            height: r.size,
+            opacity: r.opacity,
+            animationDuration: `${r.dur}s`,
+            animationDelay: `${r.delay}s`,
+          }}
+        >
+          <BackArt />
+        </span>
+      ))}
+    </div>
+  )
 }
 
 /* A kártyahát gyűrű-motívuma kicsiben */
@@ -243,6 +253,8 @@ export default function TableView({ game, teams, placements, admin }) {
   const [scanning, setScanning] = useState(false)
   const [confirmEnd, setConfirmEnd] = useState(false)
   const [zoomCards, setZoomCards] = useState(null)
+  const [shakeBad, setShakeBad] = useState(false)
+  useEffect(() => { setShakeBad(false) }, [game.current_card])
 
   // Húzáskor/beolvasáskor a lefordított lap a pakliból húzódik a helyére
   useLayoutEffect(() => {
@@ -283,7 +295,8 @@ export default function TableView({ game, teams, placements, admin }) {
     const fire = () => {
       if (fired) return
       fired = true
-      spawnBurst(tableFxRef.current, el.getBoundingClientRect(), revealedRow.correct)
+      if (revealedRow.correct) spawnBurst(tableFxRef.current, el.getBoundingClientRect())
+      else setShakeBad(true)
     }
     const onEnd = (e) => {
       if (e.animationName === 'cardFlip') fire()
@@ -379,7 +392,7 @@ export default function TableView({ game, teams, placements, admin }) {
     revealed ? (
       <div
         ref={revealFlipRef}
-        className={`flip flipped zoomable ${revealedRow.correct ? 'good' : 'bad'}`}
+        className={`flip flipped zoomable ${revealedRow.correct ? 'good' : 'bad'} ${shakeBad ? 'shaking' : ''}`}
         onClick={() => setZoomCards([revealedRow])}
       >
         <div className="inner">
@@ -399,6 +412,7 @@ export default function TableView({ game, teams, placements, admin }) {
 
   return (
     <div className="shell">
+      <RingField />
       <div className={`pause-overlay ${game.status === 'paused' ? 'show' : ''}`}>
         <div className="pause-backdrop" />
         <div className="pause-content" style={{ textAlign: 'center' }}>
