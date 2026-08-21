@@ -222,19 +222,30 @@ export default function TableView({ game, teams, placements, admin }) {
   const [confirmEnd, setConfirmEnd] = useState(false)
   const [zoomCards, setZoomCards] = useState(null)
 
-  // Konfetti a lap felfordulása után (mindenkinél, aki az asztalt nézi)
+  // Konfetti pontosan a "letevés" pillanatában: az animáció végéhez kötve
   useEffect(() => {
     if (!game.card_revealed || !revealedRow) return
     if (burstDoneRef.current === revealedRow.card_number) return
     burstDoneRef.current = revealedRow.card_number
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-    const t = setTimeout(() => {
-      const el = revealFlipRef.current
-      if (!el) return
+    const el = revealFlipRef.current
+    if (!el) return
+    let fired = false
+    const fire = () => {
+      if (fired) return
+      fired = true
       spawnBurst(tableFxRef.current, el.getBoundingClientRect(), revealedRow.correct)
-    }, 640) // a 3D-forgás végére időzítve
-    return () => clearTimeout(t)
-  }, [game.card_revealed, revealedRow?.card_number]) // sorszámhoz kötve: a realtime-frissítések nem lövik ki az időzítőt
+    }
+    const onEnd = (e) => {
+      if (e.animationName === 'cardFlip') fire()
+    }
+    el.addEventListener('animationend', onEnd) // az .inner-ről felbuborékol
+    const t = setTimeout(fire, 1400) // biztonsági háló, ha az esemény elveszne
+    return () => {
+      el.removeEventListener('animationend', onEnd)
+      clearTimeout(t)
+    }
+  }, [game.card_revealed, revealedRow?.card_number]) // sorszámhoz kötve: a realtime-frissítések nem zavarják
   const [pauseBtnHidden, setPauseBtnHidden] = useState(game.status === 'paused')
   useEffect(() => {
     if (game.status === 'paused') {
