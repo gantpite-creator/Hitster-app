@@ -234,7 +234,7 @@ export default function TableView({ game, teams, placements, admin }) {
       spawnBurst(tableFxRef.current, el.getBoundingClientRect(), revealedRow.correct)
     }, 640) // a 3D-forgás végére időzítve
     return () => clearTimeout(t)
-  }, [game.card_revealed, revealedRow])
+  }, [game.card_revealed, revealedRow?.card_number]) // sorszámhoz kötve: a realtime-frissítések nem lövik ki az időzítőt
   const [pauseBtnHidden, setPauseBtnHidden] = useState(game.status === 'paused')
   useEffect(() => {
     if (game.status === 'paused') {
@@ -249,7 +249,11 @@ export default function TableView({ game, teams, placements, admin }) {
   const fxRef = useRef(null)
   const tableFxRef = useRef(null)
   const revealFlipRef = useRef(null)
-  const burstDoneRef = useRef(null)
+  const burstDoneRef = useRef(undefined)
+  if (burstDoneRef.current === undefined) {
+    // betöltéskor már rég felfordult lapra ne menjen utólag konfetti
+    burstDoneRef.current = game.card_revealed && revealedRow ? revealedRow.card_number : null
+  }
   const resumeRef = useRef(null)
   const prevPausedRef = useRef(game.status === 'paused')
 
