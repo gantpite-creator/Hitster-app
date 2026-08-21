@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { supabase } from '../lib/supabase.js'
 import { myTeam } from '../lib/session.js'
 import {
   drawForTurn, playCard, setPendingSlot, revealPlacement, nextTurn, setStatus, getSong,
@@ -210,13 +211,26 @@ export default function TableView({ game, teams, placements, admin }) {
   const startDrag = (e) => {
     if (!isMyTurn || game.card_revealed) return
     e.preventDefault()
+    dragActiveRef.current = true
     const noFx = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     let lastPos = { x: e.clientX, y: e.clientY }
     let lastFx = 0
+    let lastCast = 0
     const move = (ev) => {
       const x = ev.clientX, y = ev.clientY
       setDrag({ x, y })
-      setHoverSlot(nearestGap(x, y))
+      const hs = nearestGap(x, y)
+      setHoverSlot(hs)
+      const stripEl = stripRef.current
+      if (stripEl && ev.timeStamp - lastCast > 40) {
+        const sr = stripEl.getBoundingClientRect()
+        dragChanRef.current?.send({
+          type: 'broadcast',
+          event: 'drag',
+          payload: { x: stripEl.scrollLeft + x - sr.left, y: y - sr.top, slot: hs },
+        })
+        lastCast = ev.timeStamp
+      }
       if (!noFx && ev.timeStamp - lastFx > 30) {
         const dx = x - lastPos.x
         const dy = y - lastPos.y
@@ -237,6 +251,8 @@ export default function TableView({ game, teams, placements, admin }) {
     const up = (ev) => {
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', up)
+      dragActiveRef.current = false
+      dragChanRef.current?.send({ type: 'broadcast', event: 'drag_end', payload: {} })
       const target = nearestGap(ev.clientX, ev.clientY)
       setHoverSlot(null)
       if (target != null) {
@@ -276,6 +292,50 @@ export default function TableView({ game, teams, placements, admin }) {
   const [scanning, setScanning] = useState(false)
   const [confirmEnd, setConfirmEnd] = useState(false)
   const [zoomCards, setZoomCards] = useState(null)
+  const [remoteActive, setRemoteActive] = useState(false)
+
+  // A távoli (másik eszközön húzott) lap pozicionálása a sáv tartalmi koordinátáiból
+  const placeRemote = (p) => {
+    const el = remoteGhostRef.current
+    if (!el) return
+    const tx = p.x - 48
+    const ty = Math.max(0, Math.min(p.y - 60, 34))
+    el.style.transform = `translate(${tx.toFixed(0)}px, ${ty.toFixed(0)}px)`
+  }
+
+  // Élő húzás-közvetítés: broadcast csatornán, adatbázis-írás nélkül
+  useEffect(() => {
+    const ch = supabase.channel(`dragcast-${game.id}`)
+    ch.on('broadcast', { event: 'drag' }, ({ payload }) => {
+      if (dragActiveRef.current) return // aki maga húz, annak nem kell tükör
+      lastRemoteRef.current = payload
+      setRemoteActive(true)
+      placeRemote(payload)
+      setHoverSlot(payload.slot ?? null)
+      clearTimeout(remoteTimerRef.current)
+      remoteTimerRef.current = setTimeout(() => {
+        setRemoteActive(false)
+        setHoverSlot(null)
+      }, 1300) // biztonsági takarítás, ha a küldő eltűnne
+    })
+    ch.on('broadcast', { event: 'drag_end' }, () => {
+      if (dragActiveRef.current) return
+      clearTimeout(remoteTimerRef.current)
+      setRemoteActive(false)
+      setHoverSlot(null)
+    })
+    ch.subscribe()
+    dragChanRef.current = ch
+    return () => {
+      clearTimeout(remoteTimerRef.current)
+      supabase.removeChannel(ch)
+      dragChanRef.current = null
+    }
+  }, [game.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useLayoutEffect(() => {
+    if (remoteActive && lastRemoteRef.current) placeRemote(lastRemoteRef.current)
+  }, [remoteActive])
   const [shakeBad, setShakeBad] = useState(false)
   useEffect(() => { setShakeBad(false) }, [game.current_card])
 
@@ -344,6 +404,11 @@ export default function TableView({ game, teams, placements, admin }) {
   /* ---- Folytatás-gomb csóva + landolás-effekt ---- */
   const fxRef = useRef(null)
   const tableFxRef = useRef(null)
+  const dragChanRef = useRef(null)
+  const dragActiveRef = useRef(false)
+  const remoteGhostRef = useRef(null)
+  const remoteTimerRef = useRef(null)
+  const lastRemoteRef = useRef(null)
   const revealFlipRef = useRef(null)
   const deckRef = useRef(null)
   const trayCardRef = useRef(null)
@@ -487,6 +552,11 @@ export default function TableView({ game, teams, placements, admin }) {
               </Gap>
             </Fragment>
           ))}
+          {remoteActive && !drag && (
+            <div ref={remoteGhostRef} className="remote-ghost">
+              <div className="card card-back static"><BackArt /></div>
+            </div>
+          )}
         </div>
         <p className="timeline-hint">
           {groups.length === 0
