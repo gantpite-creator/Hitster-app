@@ -66,6 +66,12 @@ export default function Master() {
     nav(`/jatek/${g.code}`)
   }
 
+  const closeGame = async (g) => {
+    if (!confirm(`Biztosan lezárod a(z) ${g.code} szobát?`)) return
+    await supabase.from('games').update({ status: 'finished' }).eq('id', g.id)
+    setRunning((r) => r.filter((x) => x.id !== g.id))
+  }
+
   if (!authed) {
     return (
       <div className="shell">
@@ -121,7 +127,7 @@ export default function Master() {
           </p>
           <div className="stack">
             {running.map((g) => (
-              <button key={g.id} className="result-row" onClick={() => enterAsAdmin(g)}>
+              <div key={g.id} className="result-row clickable" onClick={() => enterAsAdmin(g)}>
                 <b className="display">{g.code}</b>
                 <span style={{ flex: 1, textAlign: 'left' }} className="dim">
                   {g.status === 'lobby' ? 'váróterem' : g.status === 'paused' ? 'szünetel' : 'játékban'}
@@ -129,7 +135,14 @@ export default function Master() {
                 <span className="dim small">
                   {new Date(g.created_at).toLocaleString('hu-HU', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                 </span>
-              </button>
+                <button
+                  className="danger close-btn"
+                  onClick={(e) => { e.stopPropagation(); closeGame(g) }}
+                  title="Szoba lezárása"
+                >
+                  ✕
+                </button>
+              </div>
             ))}
           </div>
         </section>

@@ -173,6 +173,11 @@ export default function TableView({ game, teams, placements, admin }) {
           <div style={{ textAlign: 'center' }}>
             <div className="display">SZÜNET</div>
             <p className="dim">A játékmester megállította a játékot</p>
+            {admin && (
+              <button className="primary" onClick={() => setStatus(game.id, 'active')}>
+                ▶ Folytatás
+              </button>
+            )}
           </div>
         </div>
       )}

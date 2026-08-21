@@ -457,3 +457,9 @@ input.code-input {
 
 /* ================= 6. FÁZIS: CSAPATTAGOK ================= */
 .join-btn { padding: 8px 12px; font-size: 0.82rem; border-radius: 10px; }
+
+/* szünet-overlay: az admin sáv kattintható marad, a lezáró gomb kompakt */
+.admin-bar { z-index: 50; }
+.pause-overlay .primary { margin-top: 16px; }
+.result-row.clickable { cursor: pointer; }
+.close-btn { padding: 8px 13px; font-size: 0.85rem; border-radius: 10px; flex: 0 0 auto; }
