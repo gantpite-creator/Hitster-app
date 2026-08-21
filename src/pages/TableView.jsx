@@ -147,11 +147,20 @@ export default function TableView({ game, teams, placements, admin }) {
         const r = btn.getBoundingClientRect()
         const d = document.createElement('div')
         d.className = 'fx-streak'
-        const h = 10 + Math.random() * 40
-        d.style.left = `${r.left + 4 + Math.random() * (r.width - 10)}px`
-        d.style.top = `${paused ? r.bottom - 2 : r.top - h + 2}px`
-        d.style.height = `${h}px`
-        d.style.background = FX_COLORS[(Math.random() * FX_COLORS.length) | 0]
+        const h = 14 + Math.random() * 46
+        const w = 10 + Math.random() * 12
+        const sw = (1.6 + Math.random() * 2.4).toFixed(1)
+        const c = FX_COLORS[(Math.random() * FX_COLORS.length) | 0]
+        const x1 = (Math.random() * w).toFixed(1)
+        const x2 = (Math.random() * w).toFixed(1)
+        const xe = (w / 2 + (Math.random() * 6 - 3)).toFixed(1)
+        const path =
+          Math.random() < 0.45
+            ? `M ${(w / 2).toFixed(1)} 1 Q ${x1} ${(h / 2).toFixed(1)} ${xe} ${(h - 1).toFixed(1)}`
+            : `M ${(w / 2).toFixed(1)} 1 C ${x1} ${(h * 0.33).toFixed(1)}, ${x2} ${(h * 0.66).toFixed(1)}, ${xe} ${(h - 1).toFixed(1)}`
+        d.innerHTML = `<svg width="${w.toFixed(0)}" height="${h.toFixed(0)}" viewBox="0 0 ${w.toFixed(0)} ${h.toFixed(0)}"><path d="${path}" stroke="${c}" stroke-width="${sw}" fill="none" stroke-linecap="round"/></svg>`
+        d.style.left = `${r.left + Math.random() * r.width - w / 2}px`
+        d.style.top = `${paused ? r.bottom - 3 : r.top - h + 3}px`
         layer.appendChild(d)
         setTimeout(() => d.remove(), 980)
       }
@@ -167,7 +176,6 @@ export default function TableView({ game, teams, placements, admin }) {
     if (!btn || !layer) return
     const onEnd = (e) => {
       if (e.target !== btn || e.propertyName !== 'transform') return
-      if (game.status !== 'paused') return
       if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
       const r = btn.getBoundingClientRect()
       ;[r.top - 1, r.bottom - 2].forEach((y) => {
@@ -236,6 +244,7 @@ export default function TableView({ game, teams, placements, admin }) {
   return (
     <div className="shell">
       <div className={`pause-overlay ${game.status === 'paused' ? 'show' : ''}`}>
+        <div className="pause-backdrop" />
         <div className="pause-content" style={{ textAlign: 'center' }}>
           <div className="display pause-title">SZÜNET</div>
           <p className="dim pause-title">A játékmester megállította a játékot</p>
@@ -370,7 +379,11 @@ export default function TableView({ game, teams, placements, admin }) {
       {admin && !waiting && <AdminPlayer cardNumber={game.current_card} />}
       {admin && (
         <div className="admin-bar">
-          <button onClick={() => nextTurn(game, teams, placements)} disabled={!game.card_revealed}>
+          <button
+            className={`next-btn ${game.card_revealed ? 'ready' : ''}`}
+            onClick={() => nextTurn(game, teams, placements)}
+            disabled={!game.card_revealed}
+          >
             Következő kör
           </button>
           <button
