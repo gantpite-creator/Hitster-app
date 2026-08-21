@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { supabase } from './supabase.js'
-import { getGameByCode, fetchTeams, fetchPlacements } from './gameApi.js'
+import { getGameByCode, fetchTeams, fetchPlacements, fetchMembers } from './gameApi.js'
 
 // Egyetlen hook adja a teljes élő játékállapotot: a games/teams/placements
 // táblák bármely változására újratöltjük a (kicsi) állapotot – egyszerű és
@@ -9,18 +9,21 @@ export function useGame(code) {
   const [game, setGame] = useState(null)
   const [teams, setTeams] = useState([])
   const [placements, setPlacements] = useState([])
+  const [members, setMembers] = useState([])
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
 
   const reload = useCallback(async (gameId) => {
-    const [g, t, p] = await Promise.all([
+    const [g, t, p, m] = await Promise.all([
       supabase.from('games').select().eq('id', gameId).single().then((r) => r.data),
       fetchTeams(gameId),
       fetchPlacements(gameId),
+      fetchMembers(gameId),
     ])
     setGame(g)
     setTeams(t)
     setPlacements(p)
+    setMembers(m)
   }, [])
 
   useEffect(() => {
@@ -47,6 +50,9 @@ export function useGame(code) {
         .on('postgres_changes',
           { event: '*', schema: 'public', table: 'placements', filter: `game_id=eq.${g.id}` },
           () => reload(g.id))
+        .on('postgres_changes',
+          { event: '*', schema: 'public', table: 'team_members', filter: `game_id=eq.${g.id}` },
+          () => reload(g.id))
         .subscribe()
     })()
     return () => {
@@ -55,5 +61,5 @@ export function useGame(code) {
     }
   }, [code, reload])
 
-  return { game, teams, placements, loading, notFound }
+  return { game, teams, placements, members, loading, notFound }
 }

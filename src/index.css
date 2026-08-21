@@ -454,3 +454,6 @@ input.code-input {
   .no-print { display: none !important; }
   .print-cards { justify-content: flex-start; }
 }
+
+/* ================= 6. FÁZIS: CSAPATTAGOK ================= */
+.join-btn { padding: 8px 12px; font-size: 0.82rem; border-radius: 10px; }

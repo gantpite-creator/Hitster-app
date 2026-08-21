@@ -49,6 +49,8 @@ export async function fetchPlacements(gameId) {
   return data
 }
 
+export const MAX_TEAM_MEMBERS = 4
+
 export async function createTeam(gameId, name, existingCount) {
   const color = TEAM_COLORS[existingCount % TEAM_COLORS.length]
   const { data, error } = await supabase
@@ -56,6 +58,31 @@ export async function createTeam(gameId, name, existingCount) {
     .insert({ game_id: gameId, name, color })
     .select()
     .single()
+  if (error) throw error
+  await supabase.from('team_members').insert({ game_id: gameId, team_id: data.id })
+  return data
+}
+
+// Csatlakozás meglévő csapathoz (max 4 fő)
+export async function joinTeam(gameId, teamId) {
+  const { count } = await supabase
+    .from('team_members')
+    .select('id', { count: 'exact', head: true })
+    .eq('team_id', teamId)
+  if ((count ?? 0) >= MAX_TEAM_MEMBERS) {
+    throw new Error('TELE')
+  }
+  const { error } = await supabase
+    .from('team_members')
+    .insert({ game_id: gameId, team_id: teamId })
+  if (error) throw error
+}
+
+export async function fetchMembers(gameId) {
+  const { data, error } = await supabase
+    .from('team_members')
+    .select()
+    .eq('game_id', gameId)
   if (error) throw error
   return data
 }
@@ -129,7 +156,10 @@ export async function revealPlacement(game, team, song, { correct, titleOk, arti
     title_correct: titleOk,
     artist_correct: artistOk,
   })
-  if (e1) throw e1
+  if (e1) {
+    if (e1.code === '23505') return // egy csapattárs már felfordította
+    throw e1
+  }
   const bonus = (titleOk ? 1 : 0) + (artistOk ? 1 : 0)
   if (bonus > 0) {
     const { error: e2 } = await supabase

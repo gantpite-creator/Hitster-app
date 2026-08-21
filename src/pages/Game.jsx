@@ -3,14 +3,14 @@ import { useParams, Link } from 'react-router-dom'
 import { useGame } from '../lib/useGame.js'
 import { isAdmin, myTeam, setMyTeam } from '../lib/session.js'
 import {
-  createTeam, startGame, updateScoreLimit,
+  createTeam, joinTeam, startGame, updateScoreLimit, MAX_TEAM_MEMBERS,
 } from '../lib/gameApi.js'
 import CodeRing from './CodeRing.jsx'
 import TableView from './TableView.jsx'
 
 export default function Game() {
   const { code } = useParams()
-  const { game, teams, placements, loading, notFound } = useGame(code)
+  const { game, teams, placements, members, loading, notFound } = useGame(code)
 
   if (loading) return <div className="shell"><p className="dim">Kapcsolódás az asztalhoz…</p></div>
   if (notFound) {
@@ -24,7 +24,7 @@ export default function Game() {
 
   const admin = isAdmin(game.id)
   if (game.status === 'lobby') {
-    return <Lobby game={game} teams={teams} admin={admin} />
+    return <Lobby game={game} teams={teams} members={members} admin={admin} />
   }
   if (game.status === 'finished') {
     return <Results game={game} teams={teams} placements={placements} />
@@ -33,10 +33,12 @@ export default function Game() {
 }
 
 /* ---------- Váró (lobby) ---------- */
-function Lobby({ game, teams, admin }) {
+function Lobby({ game, teams, members, admin }) {
   const [name, setName] = useState('')
   const [busy, setBusy] = useState(false)
   const mine = myTeam(game.id)
+  const counts = {}
+  members.forEach((m) => { counts[m.team_id] = (counts[m.team_id] ?? 0) + 1 })
 
   const addTeam = async () => {
     setBusy(true)
@@ -44,6 +46,20 @@ function Lobby({ game, teams, admin }) {
       const t = await createTeam(game.id, name.trim(), teams.length)
       setMyTeam(game.id, t.id)
       setName('')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const join = async (teamId) => {
+    setBusy(true)
+    try {
+      await joinTeam(game.id, teamId)
+      setMyTeam(game.id, teamId)
+    } catch (e) {
+      alert(e.message === 'TELE'
+        ? 'Ez a csapat már tele van (max ' + MAX_TEAM_MEMBERS + ' fő).'
+        : 'Nem sikerült csatlakozni, próbáld újra.')
     } finally {
       setBusy(false)
     }
@@ -66,22 +82,39 @@ function Lobby({ game, teams, admin }) {
         </div>
         <div className="stack" style={{ marginTop: 12 }}>
           {teams.length === 0 && <p className="dim small">Még nincs csapat – alakítsatok!</p>}
-          {teams.map((t) => (
-            <div key={t.id} className={`team-chip ${t.id === mine ? 'mine' : ''}`}>
-              <span className="swatch" style={{ background: t.color }} />
-              <span className="name">{t.name}</span>
-              {t.id === mine && <span className="tag">ez a ti telefonotok</span>}
-            </div>
-          ))}
+          {teams.map((t) => {
+            const n = counts[t.id] ?? 0
+            const full = n >= MAX_TEAM_MEMBERS
+            return (
+              <div key={t.id} className={`team-chip ${t.id === mine ? 'mine' : ''}`}>
+                <span className="swatch" style={{ background: t.color }} />
+                <span className="name">{t.name}</span>
+                <span className="tag">{n}/{MAX_TEAM_MEMBERS} fő</span>
+                {t.id === mine ? (
+                  <span className="tag" style={{ color: 'var(--cyan)' }}>ti</span>
+                ) : (
+                  !mine && !admin && (
+                    <button
+                      className="ghost join-btn"
+                      disabled={busy || full}
+                      onClick={() => join(t.id)}
+                    >
+                      {full ? 'Tele' : 'Csatlakozás'}
+                    </button>
+                  )
+                )}
+              </div>
+            )
+          })}
         </div>
       </section>
 
-      {!mine && (
+      {!mine && !admin && (
         <section className="panel">
           <h2>Csapat alakítása</h2>
           <p className="dim small" style={{ marginTop: 0 }}>
-            Csapatonként egy telefon kell – amelyiken megnyomjátok, az lesz a csapat eszköze.
-            A többiek nézőként látják az asztalt.
+            Aki létrehozza, benne is lesz a csapatban – a többiek a Csatlakozás
+            gombbal ülhetnek be mellé (max {MAX_TEAM_MEMBERS} fő csapatonként).
           </p>
           <div className="stack">
             <input
