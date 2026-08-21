@@ -710,3 +710,21 @@ button:disabled::after { opacity: 0; }
 @media (prefers-reduced-motion: reduce) {
   .zoom-slot { animation: none; }
 }
+
+/* ================= KONFETTI-KILÖVÉS FELFORDULÁSKOR ================= */
+.fx-burst {
+  position: fixed;
+  pointer-events: none;
+  animation: fxBurst 0.8s cubic-bezier(0.15, 0.6, 0.3, 1) forwards;
+}
+@keyframes fxBurst {
+  0% {
+    transform: translate(0, 0) rotate(var(--rot));
+    opacity: 1;
+  }
+  70% { opacity: 0.85; }
+  100% {
+    transform: translate(var(--tx), var(--ty)) rotate(var(--rot));
+    opacity: 0;
+  }
+}

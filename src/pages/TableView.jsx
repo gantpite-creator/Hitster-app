@@ -13,11 +13,8 @@ import PlayerPanel from './PlayerPanel.jsx'
 // A gyűrűszínek – a Folytatás gomb csóvájához és a landolás-effekthez
 const FX_COLORS = ['#e63946', '#2d7dd2', '#f77f00', '#ffd166', '#7b5ea7', '#00aeef']
 
-// Kanyargós fénycsík rajzolása egy fix pozíciójú rétegre
-function spawnStreak(layer, xc, y, opts = {}) {
-  if (!layer) return
-  const d = document.createElement('div')
-  d.className = 'fx-streak'
+// Egy kanyargós csík SVG-je véletlen mérettel, színnel, hajlítással
+function buildStreak() {
   const h = 14 + Math.random() * 46
   const w = 10 + Math.random() * 12
   const sw = (1.6 + Math.random() * 2.4).toFixed(1)
@@ -29,12 +26,49 @@ function spawnStreak(layer, xc, y, opts = {}) {
     Math.random() < 0.45
       ? `M ${(w / 2).toFixed(1)} 1 Q ${x1} ${(h / 2).toFixed(1)} ${xe} ${(h - 1).toFixed(1)}`
       : `M ${(w / 2).toFixed(1)} 1 C ${x1} ${(h * 0.33).toFixed(1)}, ${x2} ${(h * 0.66).toFixed(1)}, ${xe} ${(h - 1).toFixed(1)}`
-  const rot = opts.rotate != null ? ` style="transform: rotate(${opts.rotate.toFixed(0)}deg)"` : ''
-  d.innerHTML = `<svg width="${w.toFixed(0)}" height="${h.toFixed(0)}" viewBox="0 0 ${w.toFixed(0)} ${h.toFixed(0)}"${rot}><path d="${path}" stroke="${c}" stroke-width="${sw}" fill="none" stroke-linecap="round"/></svg>`
+  const svg = `<svg width="${w.toFixed(0)}" height="${h.toFixed(0)}" viewBox="0 0 ${w.toFixed(0)} ${h.toFixed(0)}"><path d="${path}" stroke="${c}" stroke-width="${sw}" fill="none" stroke-linecap="round"/></svg>`
+  return { w, h, svg }
+}
+
+// Kanyargós fénycsík rajzolása egy fix pozíciójú rétegre
+function spawnStreak(layer, xc, y, opts = {}) {
+  if (!layer) return
+  const { w, h, svg } = buildStreak()
+  const d = document.createElement('div')
+  d.className = 'fx-streak'
+  d.innerHTML = svg
+  if (opts.rotate != null) d.firstChild.style.transform = `rotate(${opts.rotate.toFixed(0)}deg)`
   d.style.left = `${xc - w / 2}px`
   d.style.top = opts.mode === 'up' ? `${y - h + 3}px` : opts.mode === 'center' ? `${y - h / 2}px` : `${y - 3}px`
   layer.appendChild(d)
   setTimeout(() => d.remove(), 980)
+}
+
+// Konfetti-robbanás a lap körül: jó helyezésnél felfelé, rossznál lefelé
+function spawnBurst(layer, rect, dirUp) {
+  if (!layer) return
+  const cx = rect.left + rect.width / 2
+  const cy = rect.top + rect.height / 2
+  const n = 16
+  for (let i = 0; i < n; i++) {
+    const base = dirUp ? Math.PI + (i / (n - 1)) * Math.PI : (i / (n - 1)) * Math.PI
+    const a = base + (Math.random() - 0.5) * 0.24
+    const { w, h, svg } = buildStreak()
+    const d = document.createElement('div')
+    d.className = 'fx-burst'
+    d.innerHTML = svg
+    const sx = cx + Math.cos(a) * (rect.width / 2)
+    const sy = cy + Math.sin(a) * (rect.height / 2)
+    d.style.left = `${sx - w / 2}px`
+    d.style.top = `${sy - h / 2}px`
+    const dist = 55 + Math.random() * 90
+    d.style.setProperty('--tx', `${(Math.cos(a) * dist).toFixed(0)}px`)
+    d.style.setProperty('--ty', `${(Math.sin(a) * dist).toFixed(0)}px`)
+    d.style.setProperty('--rot', `${((a * 180) / Math.PI - 90).toFixed(0)}deg`)
+    d.style.animationDuration = `${(0.6 + Math.random() * 0.45).toFixed(2)}s`
+    layer.appendChild(d)
+    setTimeout(() => d.remove(), 1150)
+  }
 }
 
 /* A kártyahát gyűrű-motívuma kicsiben */
@@ -187,6 +221,20 @@ export default function TableView({ game, teams, placements, admin }) {
   const [scanning, setScanning] = useState(false)
   const [confirmEnd, setConfirmEnd] = useState(false)
   const [zoomCards, setZoomCards] = useState(null)
+
+  // Konfetti a lap felfordulása után (mindenkinél, aki az asztalt nézi)
+  useEffect(() => {
+    if (!game.card_revealed || !revealedRow) return
+    if (burstDoneRef.current === revealedRow.card_number) return
+    burstDoneRef.current = revealedRow.card_number
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const t = setTimeout(() => {
+      const el = revealFlipRef.current
+      if (!el) return
+      spawnBurst(tableFxRef.current, el.getBoundingClientRect(), revealedRow.correct)
+    }, 640) // a 3D-forgás végére időzítve
+    return () => clearTimeout(t)
+  }, [game.card_revealed, revealedRow])
   const [pauseBtnHidden, setPauseBtnHidden] = useState(game.status === 'paused')
   useEffect(() => {
     if (game.status === 'paused') {
@@ -200,6 +248,8 @@ export default function TableView({ game, teams, placements, admin }) {
   /* ---- Folytatás-gomb csóva + landolás-effekt ---- */
   const fxRef = useRef(null)
   const tableFxRef = useRef(null)
+  const revealFlipRef = useRef(null)
+  const burstDoneRef = useRef(null)
   const resumeRef = useRef(null)
   const prevPausedRef = useRef(game.status === 'paused')
 
@@ -261,6 +311,7 @@ export default function TableView({ game, teams, placements, admin }) {
   const pendingCard = (interactive) =>
     revealed ? (
       <div
+        ref={revealFlipRef}
         className={`flip flipped zoomable ${revealedRow.correct ? 'good' : 'bad'}`}
         onClick={() => setZoomCards([revealedRow])}
       >
