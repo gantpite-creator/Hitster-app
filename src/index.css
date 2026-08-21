@@ -611,12 +611,15 @@ input.code-input {
   inherits: false;
   initial-value: 0deg;
 }
+button, .turn-banner, .score-pill { position: relative; } /* a fény a SAJÁT szélükhöz tapad */
 button { --orbit: #00aeef; }         /* világos gombon cián fut körbe */
 button.primary { --orbit: #ff9838; } /* ciánon a komplementer narancs */
 button.danger { --orbit: #ffd166; }  /* piroson meleg arany */
 button.ghost { --orbit: #00aeef; }
 
-button::after {
+button::after,
+.turn-banner::after,
+.score-pill::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -654,6 +657,8 @@ button:disabled::after { opacity: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  button::after { animation: none; }
+  button::after,
+.turn-banner::after,
+.score-pill::after { animation: none; }
   .next-btn.ready { animation: none; }
 }

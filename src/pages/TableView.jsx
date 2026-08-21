@@ -5,6 +5,7 @@ import {
 } from '../lib/gameApi.js'
 import { titleMatches, artistMatches } from '../lib/match.js'
 import { useCardStyles } from '../lib/cardStyles.js'
+import { complementOf } from '../lib/colors.js'
 import ScannerModal from './ScannerModal.jsx'
 import ConfirmModal from './ConfirmModal.jsx'
 import PlayerPanel from './PlayerPanel.jsx'
@@ -124,6 +125,15 @@ export default function TableView({ game, teams, placements, admin }) {
   const [busy, setBusy] = useState(false)
   const [scanning, setScanning] = useState(false)
   const [confirmEnd, setConfirmEnd] = useState(false)
+  const [pauseBtnHidden, setPauseBtnHidden] = useState(game.status === 'paused')
+  useEffect(() => {
+    if (game.status === 'paused') {
+      setPauseBtnHidden(true)
+      return
+    }
+    const t = setTimeout(() => setPauseBtnHidden(false), 1300) // a landolás után nő vissza
+    return () => clearTimeout(t)
+  }, [game.status])
 
   /* ---- Folytatás-gomb csóva + landolás-effekt ---- */
   const fxRef = useRef(null)
@@ -257,14 +267,17 @@ export default function TableView({ game, teams, placements, admin }) {
         <div className="fx-layer" ref={fxRef} />
       </div>
 
-      <div className="turn-banner" style={{ background: current?.color ?? 'var(--cyan)' }}>
+      <div
+        className="turn-banner"
+        style={{ background: current?.color ?? 'var(--cyan)', '--orbit': complementOf(current?.color) }}
+      >
         <div className="label">{isMyTurn ? 'Ti jöttök!' : 'Most jön'}</div>
         <div className="team">{current?.name}</div>
       </div>
 
       <div className="scoreboard">
         {[...teams].sort((a, b) => (a.turn_order ?? 0) - (b.turn_order ?? 0)).map((t) => (
-          <span className="score-pill" key={t.id}>
+          <span className="score-pill" key={t.id} style={{ '--orbit': t.color }}>
             <span className="dot" style={{ background: t.color }} />
             {t.name}: {scores[t.id]}
             {game.score_limit ? ` / ${game.score_limit}` : ''}
@@ -387,7 +400,7 @@ export default function TableView({ game, teams, placements, admin }) {
             Következő kör
           </button>
           <button
-            className={`ghost pause-toggle ${game.status === 'paused' ? 'collapsed' : ''}`}
+            className={`ghost pause-toggle ${pauseBtnHidden ? 'collapsed' : ''}`}
             onClick={() => setStatus(game.id, 'paused')}
           >
             Szünet
