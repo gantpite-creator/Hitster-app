@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { myTeam } from '../lib/session.js'
 import {
   drawForTurn, playCard, setPendingSlot, revealPlacement, nextTurn, setStatus, getSong,
@@ -44,30 +44,52 @@ function spawnStreak(layer, xc, y, opts = {}) {
   setTimeout(() => d.remove(), 980)
 }
 
-// Konfetti-robbanás a lap körül: jó helyezésnél felfelé, rossznál lefelé
-function spawnBurst(layer, rect, dirUp) {
+// Jó helyezés: diadal-konfetti felfelé, félkörívben.
+// Rossz helyezés: "kieresztett lufi" – lefelé szállingózó, kunkorodó vonalak.
+function spawnBurst(layer, rect, correct) {
   if (!layer) return
   const cx = rect.left + rect.width / 2
   const cy = rect.top + rect.height / 2
-  const n = 16
-  for (let i = 0; i < n; i++) {
-    const base = dirUp ? Math.PI + (i / (n - 1)) * Math.PI : (i / (n - 1)) * Math.PI
-    const a = base + (Math.random() - 0.5) * 0.24
-    const { w, h, svg } = buildStreak()
-    const d = document.createElement('div')
-    d.className = 'fx-burst'
-    d.innerHTML = svg
-    const sx = cx + Math.cos(a) * (rect.width / 2)
-    const sy = cy + Math.sin(a) * (rect.height / 2)
-    d.style.left = `${sx - w / 2}px`
-    d.style.top = `${sy - h / 2}px`
-    const dist = 55 + Math.random() * 90
-    d.style.setProperty('--tx', `${(Math.cos(a) * dist).toFixed(0)}px`)
-    d.style.setProperty('--ty', `${(Math.sin(a) * dist).toFixed(0)}px`)
-    d.style.setProperty('--rot', `${((a * 180) / Math.PI - 90).toFixed(0)}deg`)
-    d.style.animationDuration = `${(0.6 + Math.random() * 0.45).toFixed(2)}s`
-    layer.appendChild(d)
-    setTimeout(() => d.remove(), 1150)
+  if (correct) {
+    const n = 16
+    for (let i = 0; i < n; i++) {
+      const a = Math.PI + (i / (n - 1)) * Math.PI + (Math.random() - 0.5) * 0.24
+      const { w, h, svg } = buildStreak()
+      const d = document.createElement('div')
+      d.className = 'fx-burst'
+      d.innerHTML = svg
+      d.style.left = `${cx + Math.cos(a) * (rect.width / 2) - w / 2}px`
+      d.style.top = `${cy + Math.sin(a) * (rect.height / 2) - h / 2}px`
+      const dist = 55 + Math.random() * 90
+      d.style.setProperty('--tx', `${(Math.cos(a) * dist).toFixed(0)}px`)
+      d.style.setProperty('--ty', `${(Math.sin(a) * dist).toFixed(0)}px`)
+      d.style.setProperty('--rot', `${((a * 180) / Math.PI - 90).toFixed(0)}deg`)
+      d.style.animationDuration = `${(0.6 + Math.random() * 0.45).toFixed(2)}s`
+      layer.appendChild(d)
+      setTimeout(() => d.remove(), 1150)
+    }
+  } else {
+    const n = 13
+    for (let i = 0; i < n; i++) {
+      // indulás az alsó félkerület mentén
+      const pa = (i / (n - 1)) * Math.PI + (Math.random() - 0.5) * 0.2
+      const { w, h, svg } = buildStreak()
+      const d = document.createElement('div')
+      d.className = 'fx-sad'
+      d.innerHTML = svg
+      d.style.left = `${cx + Math.cos(pa) * (rect.width / 2) - w / 2}px`
+      d.style.top = `${cy + Math.sin(pa) * (rect.height / 2) - h / 2}px`
+      // mozgás: szinte csak lefelé, kis oldalirányú imbolygással
+      const ma = Math.PI / 2 + (Math.random() - 0.5) * 0.7
+      const dist = 90 + Math.random() * 85
+      d.style.setProperty('--tx', `${(Math.cos(ma) * dist * 0.4).toFixed(0)}px`)
+      d.style.setProperty('--ty', `${(Math.sin(ma) * dist).toFixed(0)}px`)
+      d.style.setProperty('--sway', `${(Math.random() * 26 - 13).toFixed(0)}px`)
+      d.style.setProperty('--rot', `${((ma * 180) / Math.PI - 90).toFixed(0)}deg`)
+      d.style.animationDuration = `${(1.15 + Math.random() * 0.6).toFixed(2)}s`
+      layer.appendChild(d)
+      setTimeout(() => d.remove(), 2000)
+    }
   }
 }
 
@@ -222,6 +244,33 @@ export default function TableView({ game, teams, placements, admin }) {
   const [confirmEnd, setConfirmEnd] = useState(false)
   const [zoomCards, setZoomCards] = useState(null)
 
+  // Húzáskor/beolvasáskor a lefordított lap a pakliból húzódik a helyére
+  useLayoutEffect(() => {
+    const prev = prevCardRef.current
+    prevCardRef.current = game.current_card
+    if (prev != null || game.current_card == null) return
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const deck = deckRef.current
+    const tray = trayCardRef.current
+    if (!deck || !tray) return
+    const dr = deck.getBoundingClientRect()
+    const tr = tray.getBoundingClientRect()
+    const dx = dr.left + dr.width / 2 - (tr.left + tr.width / 2)
+    const dy = dr.top + dr.height / 2 - (tr.top + tr.height / 2)
+    tray.style.transition = 'none'
+    tray.style.transform = `translate(${dx.toFixed(0)}px, ${dy.toFixed(0)}px) scale(${(dr.width / tr.width).toFixed(2)}) rotate(-6deg)`
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        tray.style.transition = 'transform 0.6s cubic-bezier(0.3, 1.05, 0.35, 1)'
+        tray.style.transform = ''
+      })
+    )
+    const t = setTimeout(() => {
+      if (trayCardRef.current) trayCardRef.current.style.transition = ''
+    }, 700)
+    return () => clearTimeout(t)
+  }, [game.current_card])
+
   // Konfetti pontosan a "letevés" pillanatában: az animáció végéhez kötve
   useEffect(() => {
     if (!game.card_revealed || !revealedRow) return
@@ -260,6 +309,9 @@ export default function TableView({ game, teams, placements, admin }) {
   const fxRef = useRef(null)
   const tableFxRef = useRef(null)
   const revealFlipRef = useRef(null)
+  const deckRef = useRef(null)
+  const trayCardRef = useRef(null)
+  const prevCardRef = useRef(game.current_card)
   const burstDoneRef = useRef(undefined)
   if (burstDoneRef.current === undefined) {
     // betöltéskor már rég felfordult lapra ne menjen utólag konfetti
@@ -406,11 +458,16 @@ export default function TableView({ game, teams, placements, admin }) {
         </p>
       </div>
 
-      {/* ---- tálca / állapot ---- */}
-      {waiting && (
-        <div className="panel" style={{ textAlign: 'center', marginTop: 14 }}>
-          {admin ? (
-            <div className="action-grid">
+      {/* ---- pakli + tálca ---- */}
+      <div className="deck-row">
+        <div className="deck" ref={deckRef} aria-hidden="true">
+          <div className="card card-back static deck-c d1"><BackArt /></div>
+          <div className="card card-back static deck-c d2"><BackArt /></div>
+          <div className="card card-back static deck-c d3"><BackArt /></div>
+        </div>
+        {waiting &&
+          (admin ? (
+            <div className="action-grid" style={{ flex: 1 }}>
               <button className="primary" onClick={() => setScanning(true)}>
                 📷 Beolvasás
               </button>
@@ -422,9 +479,18 @@ export default function TableView({ game, teams, placements, admin }) {
             <p className="dim" style={{ margin: 0 }}>
               A játékmester mindjárt indítja a zenét…
             </p>
-          )}
-        </div>
-      )}
+          ))}
+        {placing && slot == null && (
+          <>
+            <div ref={trayCardRef} className="tray-card">{pendingCard(isMyTurn)}</div>
+            <div className="hint">
+              {isMyTurn
+                ? 'Tartsátok rajta az ujjatokat és húzzátok az idővonalra!'
+                : `A(z) ${current?.name} csapat épp helyezkedik…`}
+            </div>
+          </>
+        )}
+      </div>
 
       {scanning && (
         <ScannerModal
@@ -435,17 +501,6 @@ export default function TableView({ game, teams, placements, admin }) {
             await playCard(game, song.card_number)
           }}
         />
-      )}
-
-      {placing && slot == null && (
-        <div className="tray">
-          {pendingCard(isMyTurn)}
-          <div className="hint">
-            {isMyTurn
-              ? 'Tartsátok rajta az ujjatokat és húzzátok az idővonalra!'
-              : `A(z) ${current?.name} csapat épp helyezkedik…`}
-          </div>
-        </div>
       )}
 
       {placing && slot != null && isMyTurn && (
