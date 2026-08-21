@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
 import { createGame } from '../lib/gameApi.js'
 import { setAdmin } from '../lib/session.js'
+import ConfirmModal from './ConfirmModal.jsx'
 
 const PIN_KEY = 'hitster-muhely-pin' // ugyanaz a PIN, mint a Műhelyben
 
@@ -17,6 +18,7 @@ export default function Master() {
   const [limit, setLimit] = useState(10)
   const [busy, setBusy] = useState(false)
   const [running, setRunning] = useState([])
+  const [toClose, setToClose] = useState(null)
 
   useEffect(() => {
     if (!pin) return
@@ -67,9 +69,9 @@ export default function Master() {
   }
 
   const closeGame = async (g) => {
-    if (!confirm(`Biztosan lezárod a(z) ${g.code} szobát?`)) return
     await supabase.from('games').update({ status: 'finished' }).eq('id', g.id)
     setRunning((r) => r.filter((x) => x.id !== g.id))
+    setToClose(null)
   }
 
   if (!authed) {
@@ -137,7 +139,7 @@ export default function Master() {
                 </span>
                 <button
                   className="danger close-btn"
-                  onClick={(e) => { e.stopPropagation(); closeGame(g) }}
+                  onClick={(e) => { e.stopPropagation(); setToClose(g) }}
                   title="Szoba lezárása"
                 >
                   ✕
@@ -147,6 +149,15 @@ export default function Master() {
           </div>
         </section>
       )}
+
+      <ConfirmModal
+        open={!!toClose}
+        title={`${toClose?.code ?? ''} lezárása`}
+        text="A szoba bezárul, a bent lévők a végeredményt látják majd."
+        confirmLabel="Lezárás"
+        onConfirm={() => closeGame(toClose)}
+        onCancel={() => setToClose(null)}
+      />
     </div>
   )
 }

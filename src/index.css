@@ -463,3 +463,96 @@ input.code-input {
 .pause-overlay .primary { margin-top: 16px; }
 .result-row.clickable { cursor: pointer; }
 .close-btn { padding: 8px 13px; font-size: 0.85rem; border-radius: 10px; flex: 0 0 auto; }
+
+/* ================= FINOMHANGOLÁS: SZÜNET-KOREOGRÁFIA + CONFIRM ================= */
+
+/* a szünet-overlay mindig jelen van, csak láthatóságot vált – így ki-be animál */
+.pause-overlay {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s ease;
+}
+.pause-overlay.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+.pause-title {
+  transform: translateY(10px);
+  transition: transform 0.4s cubic-bezier(0.3, 1.1, 0.35, 1);
+}
+.pause-overlay.show .pause-title { transform: none; }
+
+/* a Folytatás gomb a sáv magasságából úszik fel a képernyő közepére */
+.pause-resume {
+  margin-top: 18px;
+  transform: translateY(44vh);
+  opacity: 0;
+  transition: transform 0.55s cubic-bezier(0.28, 1.12, 0.32, 1), opacity 0.3s ease;
+}
+.pause-overlay.show .pause-resume {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+/* a sávbeli Szünet gomb helyet csinál: szélessége nullára olvad */
+.admin-bar .pause-toggle {
+  max-width: 180px;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: max-width 0.4s cubic-bezier(0.4, 0, 0.2, 1), padding 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.25s ease, margin 0.4s cubic-bezier(0.4, 0, 0.2, 1), border-width 0.4s;
+}
+.admin-bar .pause-toggle.collapsed {
+  max-width: 0;
+  padding-left: 0;
+  padding-right: 0;
+  margin: 0 -4px;
+  border-width: 0;
+  opacity: 0;
+  pointer-events: none;
+  flex: 0 0 auto;
+}
+
+/* tematikus megerősítő ablak */
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(10, 10, 12, 0.72);
+  backdrop-filter: blur(6px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+.confirm-overlay.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+.confirm-box {
+  width: 100%;
+  max-width: 360px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 20px;
+  transform: translateY(26px) scale(0.94);
+  opacity: 0;
+  transition: transform 0.4s cubic-bezier(0.28, 1.18, 0.35, 1), opacity 0.25s ease;
+}
+.confirm-overlay.show .confirm-box {
+  transform: none;
+  opacity: 1;
+}
+.confirm-rings {
+  display: block;
+  width: 54px;
+  height: 54px;
+  margin: 0 auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pause-resume, .pause-title, .confirm-box, .admin-bar .pause-toggle { transition: none; }
+}

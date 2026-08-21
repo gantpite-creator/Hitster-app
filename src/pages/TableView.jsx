@@ -6,6 +6,7 @@ import {
 import { titleMatches, artistMatches } from '../lib/match.js'
 import { useCardStyles } from '../lib/cardStyles.js'
 import ScannerModal from './ScannerModal.jsx'
+import ConfirmModal from './ConfirmModal.jsx'
 import PlayerPanel from './PlayerPanel.jsx'
 
 /* A kártyahát gyűrű-motívuma kicsiben */
@@ -119,6 +120,7 @@ export default function TableView({ game, teams, placements, admin }) {
   const [artistGuess, setArtistGuess] = useState('')
   const [busy, setBusy] = useState(false)
   const [scanning, setScanning] = useState(false)
+  const [confirmEnd, setConfirmEnd] = useState(false)
   useEffect(() => {
     setTitleGuess('')
     setArtistGuess('')
@@ -168,19 +170,17 @@ export default function TableView({ game, teams, placements, admin }) {
 
   return (
     <div className="shell">
-      {game.status === 'paused' && (
-        <div className="pause-overlay">
-          <div style={{ textAlign: 'center' }}>
-            <div className="display">SZÜNET</div>
-            <p className="dim">A játékmester megállította a játékot</p>
-            {admin && (
-              <button className="primary" onClick={() => setStatus(game.id, 'active')}>
-                ▶ Folytatás
-              </button>
-            )}
-          </div>
+      <div className={`pause-overlay ${game.status === 'paused' ? 'show' : ''}`}>
+        <div style={{ textAlign: 'center' }}>
+          <div className="display pause-title">SZÜNET</div>
+          <p className="dim pause-title">A játékmester megállította a játékot</p>
+          {admin && (
+            <button className="primary pause-resume" onClick={() => setStatus(game.id, 'active')}>
+              ▶ Folytatás
+            </button>
+          )}
         </div>
-      )}
+      </div>
 
       <div className="turn-banner" style={{ background: current?.color ?? 'var(--cyan)' }}>
         <div className="label">{isMyTurn ? 'Ti jöttök!' : 'Most jön'}</div>
@@ -307,16 +307,26 @@ export default function TableView({ game, teams, placements, admin }) {
           <button onClick={() => nextTurn(game, teams, placements)} disabled={!game.card_revealed}>
             Következő kör
           </button>
-          <button className="ghost" onClick={() => setStatus(game.id, game.status === 'paused' ? 'active' : 'paused')}>
-            {game.status === 'paused' ? 'Folytatás' : 'Szünet'}
+          <button
+            className={`ghost pause-toggle ${game.status === 'paused' ? 'collapsed' : ''}`}
+            onClick={() => setStatus(game.id, 'paused')}
+          >
+            Szünet
           </button>
-          <button className="danger" onClick={() => {
-            if (confirm('Biztosan lezárod a játékot?')) setStatus(game.id, 'finished')
-          }}>
+          <button className="danger" onClick={() => setConfirmEnd(true)}>
             Vége
           </button>
         </div>
       )}
+
+      <ConfirmModal
+        open={confirmEnd}
+        title="Játék lezárása"
+        text="Mindenki a végeredmény-képernyőt kapja. Ez nem vonható vissza."
+        confirmLabel="Játék vége"
+        onConfirm={() => { setConfirmEnd(false); setStatus(game.id, 'finished') }}
+        onCancel={() => setConfirmEnd(false)}
+      />
 
       {/* húzás közbeni "szellem" kártya az ujj alatt */}
       {drag && (
