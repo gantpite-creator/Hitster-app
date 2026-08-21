@@ -556,3 +556,40 @@ input.code-input {
 @media (prefers-reduced-motion: reduce) {
   .pause-resume, .pause-title, .confirm-box, .admin-bar .pause-toggle { transition: none; }
 }
+
+/* ================= FOLYTATÁS-CSÓVA + FORGÓ GYŰRŰK ================= */
+.confirm-rings { animation: spin 18s linear infinite; }
+
+.fx-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+.fx-streak {
+  position: fixed;
+  width: 3px;
+  border-radius: 2px;
+  pointer-events: none;
+  animation: fxStreak 0.5s ease-out forwards;
+}
+@keyframes fxStreak {
+  from { opacity: 0.95; }
+  to { opacity: 0; }
+}
+.fx-sweep {
+  position: fixed;
+  height: 3px;
+  border-radius: 2px;
+  pointer-events: none;
+  animation: fxSweep 0.55s cubic-bezier(0.2, 0.75, 0.3, 1) forwards;
+}
+.fx-sweep.left { transform-origin: right center; }
+.fx-sweep.right { transform-origin: left center; }
+@keyframes fxSweep {
+  0% { transform: scaleX(0); opacity: 1; }
+  75% { opacity: 0.85; }
+  100% { transform: scaleX(1); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .confirm-rings { animation: none; }
+}

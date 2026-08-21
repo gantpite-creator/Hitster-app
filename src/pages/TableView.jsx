@@ -9,6 +9,9 @@ import ScannerModal from './ScannerModal.jsx'
 import ConfirmModal from './ConfirmModal.jsx'
 import PlayerPanel from './PlayerPanel.jsx'
 
+// A gyűrűszínek – a Folytatás gomb csóvájához és a landolás-effekthez
+const FX_COLORS = ['#e63946', '#2d7dd2', '#f77f00', '#ffd166', '#7b5ea7', '#00aeef']
+
 /* A kártyahát gyűrű-motívuma kicsiben */
 function BackArt() {
   return (
@@ -121,6 +124,68 @@ export default function TableView({ game, teams, placements, admin }) {
   const [busy, setBusy] = useState(false)
   const [scanning, setScanning] = useState(false)
   const [confirmEnd, setConfirmEnd] = useState(false)
+
+  /* ---- Folytatás-gomb csóva + landolás-effekt ---- */
+  const fxRef = useRef(null)
+  const resumeRef = useRef(null)
+  const prevPausedRef = useRef(game.status === 'paused')
+
+  useEffect(() => {
+    const paused = game.status === 'paused'
+    if (prevPausedRef.current === paused) return
+    prevPausedRef.current = paused
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const layer = fxRef.current
+    const btn = resumeRef.current
+    if (!layer || !btn) return
+    let raf
+    const t0 = performance.now()
+    let last = 0
+    const tick = (now) => {
+      if (now - last > 26) {
+        last = now
+        const r = btn.getBoundingClientRect()
+        const d = document.createElement('div')
+        d.className = 'fx-streak'
+        const h = 10 + Math.random() * 40
+        d.style.left = `${r.left + 4 + Math.random() * (r.width - 10)}px`
+        d.style.top = `${paused ? r.bottom - 2 : r.top - h + 2}px`
+        d.style.height = `${h}px`
+        d.style.background = FX_COLORS[(Math.random() * FX_COLORS.length) | 0]
+        layer.appendChild(d)
+        setTimeout(() => d.remove(), 520)
+      }
+      if (now - t0 < 580) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [game.status])
+
+  useEffect(() => {
+    const btn = resumeRef.current
+    const layer = fxRef.current
+    if (!btn || !layer) return
+    const onEnd = (e) => {
+      if (e.target !== btn || e.propertyName !== 'transform') return
+      if (game.status !== 'paused') return
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+      const r = btn.getBoundingClientRect()
+      ;[r.top - 1, r.bottom - 2].forEach((y) => {
+        ;['left', 'right'].forEach((side) => {
+          const d = document.createElement('div')
+          d.className = `fx-sweep ${side}`
+          d.style.top = `${y}px`
+          d.style.left = side === 'left' ? `${r.left}px` : `${r.left + r.width / 2}px`
+          d.style.width = `${r.width / 2}px`
+          d.style.background = FX_COLORS[(Math.random() * FX_COLORS.length) | 0]
+          layer.appendChild(d)
+          setTimeout(() => d.remove(), 620)
+        })
+      })
+    }
+    btn.addEventListener('transitionend', onEnd)
+    return () => btn.removeEventListener('transitionend', onEnd)
+  }, [game.status])
   useEffect(() => {
     setTitleGuess('')
     setArtistGuess('')
@@ -175,11 +240,12 @@ export default function TableView({ game, teams, placements, admin }) {
           <div className="display pause-title">SZÜNET</div>
           <p className="dim pause-title">A játékmester megállította a játékot</p>
           {admin && (
-            <button className="primary pause-resume" onClick={() => setStatus(game.id, 'active')}>
+            <button ref={resumeRef} className="primary pause-resume" onClick={() => setStatus(game.id, 'active')}>
               ▶ Folytatás
             </button>
           )}
         </div>
+        <div className="fx-layer" ref={fxRef} />
       </div>
 
       <div className="turn-banner" style={{ background: current?.color ?? 'var(--cyan)' }}>
