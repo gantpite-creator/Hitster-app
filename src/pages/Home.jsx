@@ -28,7 +28,7 @@ export default function Home() {
   return (
     <div className="shell">
       <header style={{ textAlign: 'center', margin: '48px 0 34px' }}>
-        <h1 style={{ fontSize: '2rem' }}>HITSTER</h1>
+        <h1 style={{ fontSize: '2rem' }}>SLÁGERSOR</h1>
         <p className="dim small" style={{ margin: 0 }}>házi kiadás · 1404+ zene</p>
       </header>
 
