@@ -147,15 +147,26 @@ export async function setPendingSlot(gameId, slot) {
 }
 
 // Felfordítás: lehelyezés kiértékelve + bónuszok + kártya felfedése
-export async function revealPlacement(game, team, song, { correct, titleOk, artistOk }) {
-  const { error: e1 } = await supabase.from('placements').insert({
+export async function revealPlacement(
+  game, team, song, { correct, titleOk, artistOk, titleGuess = '', artistGuess = '' }
+) {
+  const row = {
     game_id: game.id,
     team_id: team.id,
     card_number: song.card_number,
     correct,
     title_correct: titleOk,
     artist_correct: artistOk,
-  })
+    title_guess: titleGuess.trim() || null,
+    artist_guess: artistGuess.trim() || null,
+  }
+  let { error: e1 } = await supabase.from('placements').insert(row)
+  if (e1 && (e1.code === 'PGRST204' || e1.code === '42703')) {
+    // a tipp-oszlopok még nincsenek az adatbázisban: mentés nélkülük
+    delete row.title_guess
+    delete row.artist_guess
+    ;({ error: e1 } = await supabase.from('placements').insert(row))
+  }
   if (e1) {
     if (e1.code === '23505') return // egy csapattárs már felfordította
     throw e1
@@ -237,4 +248,19 @@ export async function playCard(game, cardNumber) {
     .update({ current_card: cardNumber, card_revealed: false, pending_slot: null })
     .eq('id', game.id)
   if (error) throw error
+}
+
+// Játékmesteri felülbírálás: a cím/előadó bónusz kézi megadása vagy elvétele
+export async function setBonus(placement, team, field, value) {
+  if (placement[field] === value) return
+  const { error: e1 } = await supabase
+    .from('placements')
+    .update({ [field]: value })
+    .eq('id', placement.id)
+  if (e1) throw e1
+  const { error: e2 } = await supabase
+    .from('teams')
+    .update({ bonus_points: Math.max(0, team.bonus_points + (value ? 1 : -1)) })
+    .eq('id', team.id)
+  if (e2) throw e2
 }

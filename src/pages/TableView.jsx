@@ -2,7 +2,7 @@ import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 
 import { supabase } from '../lib/supabase.js'
 import { myTeam } from '../lib/session.js'
 import {
-  drawForTurn, playCard, setPendingSlot, revealPlacement, nextTurn, setStatus, getSong,
+  drawForTurn, playCard, setBonus, setPendingSlot, revealPlacement, nextTurn, setStatus, getSong,
 } from '../lib/gameApi.js'
 import { titleMatches, artistMatches } from '../lib/match.js'
 import { useCardStyles } from '../lib/cardStyles.js'
@@ -465,6 +465,8 @@ export default function TableView({ game, teams, placements, admin }) {
         correct,
         titleOk: titleMatches(titleGuess, song.title),
         artistOk: artistMatches(artistGuess, song.artists),
+        titleGuess,
+        artistGuess,
       })
     } finally {
       setBusy(false)
@@ -638,10 +640,22 @@ export default function TableView({ game, teams, placements, admin }) {
       {revealed && (
         <div className={`result-banner ${revealedRow.correct ? 'good' : 'bad'}`}>
           {revealedRow.correct ? 'Jó helyre került! +1 lap' : 'Nem talált – ez a lap kiesik'}
-          <div className="sub">
-            Cím: {revealedRow.title_correct ? '+1 pont ✓' : 'nincs pont'} ·{' '}
-            Előadó: {revealedRow.artist_correct ? '+1 pont ✓' : 'nincs pont'}
-          </div>
+          <BonusLine
+            label="Cím"
+            field="title_correct"
+            guess={revealedRow.title_guess}
+            row={revealedRow}
+            team={teams.find((t) => t.id === revealedRow.team_id)}
+            admin={admin}
+          />
+          <BonusLine
+            label="Előadó"
+            field="artist_correct"
+            guess={revealedRow.artist_guess}
+            row={revealedRow}
+            team={teams.find((t) => t.id === revealedRow.team_id)}
+            admin={admin}
+          />
         </div>
       )}
 
@@ -758,4 +772,37 @@ function AdminPlayer({ cardNumber }) {
   }, [cardNumber])
   if (!song) return null
   return <PlayerPanel song={song} />
+}
+
+// Bónusz-sor: a csapat tippje + az ítélet; a mester egy koppintással felülbírálhatja
+function BonusLine({ label, field, guess, row, team, admin }) {
+  const ok = row[field]
+  const [busy, setBusy] = useState(false)
+  const toggle = async () => {
+    if (!team || busy) return
+    setBusy(true)
+    try {
+      await setBonus(row, team, field, !ok)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div className="bonus-line">
+      <span className="dim">{label}:</span>
+      <span className="bonus-guess">{guess ? `„${guess}”` : '—'}</span>
+      {admin ? (
+        <button
+          className={`bonus-toggle ${ok ? 'on' : ''}`}
+          disabled={busy}
+          onClick={toggle}
+          title="Játékmesteri felülbírálás"
+        >
+          {ok ? '+1 ✓' : 'nincs pont'}
+        </button>
+      ) : (
+        <span className={`bonus-verdict ${ok ? 'on' : ''}`}>{ok ? '+1 pont ✓' : 'nincs pont'}</span>
+      )}
+    </div>
+  )
 }

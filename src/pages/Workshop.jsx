@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import QRCode from 'qrcode'
 import { supabase } from '../lib/supabase.js'
 import { useCardStyles } from '../lib/cardStyles.js'
+import StyleEditor from './StyleEditor.jsx'
 
 const PIN_KEY = 'hitster-muhely-pin'
 
@@ -65,6 +66,7 @@ function WorkshopInner({ pin }) {
   const [results, setResults] = useState([])
   const [editing, setEditing] = useState(null)   // null = nincs form; {} = új zene
   const [printSong, setPrintSong] = useState(null)
+  const [standaloneEditor, setStandaloneEditor] = useState(false)
 
   const search = async () => {
     const t = term.trim().replace(/,/g, ' ')
@@ -80,7 +82,10 @@ function WorkshopInner({ pin }) {
     <div className="shell">
       <div className="spread">
         <h1>Műhely</h1>
-        <button className="primary" onClick={() => setEditing({})}>+ Új zene</button>
+        <div className="row">
+          <button className="ghost" onClick={() => setStandaloneEditor(true)}>🎨 Új színvilág</button>
+          <button className="primary" onClick={() => setEditing({})}>+ Új zene</button>
+        </div>
       </div>
       <p className="dim small" style={{ marginTop: 0 }}>
         Keresés cím, előadó vagy sorszám alapján, aztán koppints a találatra.
@@ -131,6 +136,14 @@ function WorkshopInner({ pin }) {
       {printSong && (
         <PrintSheet song={printSong} styles={styles} onClose={() => setPrintSong(null)} />
       )}
+
+      {standaloneEditor && (
+        <StyleEditor
+          pin={pin}
+          onClose={() => setStandaloneEditor(false)}
+          onSaved={() => setStandaloneEditor(false)}
+        />
+      )}
     </div>
   )
 }
@@ -144,8 +157,9 @@ function SongForm({ pin, song, styles, onClose, onSaved, onPrint }) {
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
 
+  const [editor, setEditor] = useState(null) // { base, editId }
   const styleList = styles
-    ? Object.values(styles).sort((a, b) => a.id.localeCompare(b.id))
+    ? Object.values(styles).sort((a, b) => (a.custom === b.custom ? a.id.localeCompare(b.id) : a.custom ? 1 : -1))
     : []
   const st = styles?.[style]
 
@@ -229,13 +243,41 @@ function SongForm({ pin, song, styles, onClose, onSaved, onPrint }) {
         {styleList.map((s) => (
           <button
             key={s.id}
-            className={`swatch-pick ${s.id === style ? 'sel' : ''}`}
+            className={`swatch-pick ${s.id === style ? 'sel' : ''} ${s.custom ? 'custom' : ''}`}
             style={{ background: s.bg }}
-            title={s.id}
+            title={s.name || (s.custom ? 'saját színvilág' : s.id)}
             onClick={() => setStyle(s.id)}
           />
         ))}
+        <button className="swatch-pick swatch-new" title="Új színvilág" onClick={() => setEditor({ base: null })}>+</button>
       </div>
+      <div className="row" style={{ marginTop: 8, flexWrap: 'wrap' }}>
+        {st && (
+          <button className="ghost tiny" onClick={() => setEditor({ base: st })}>
+            Másolat erről → szerkesztés
+          </button>
+        )}
+        {st?.custom && (
+          <button className="ghost tiny" onClick={() => setEditor({ base: st, editId: st.id })}>
+            ✎ Ennek a szerkesztése
+          </button>
+        )}
+        {st?.name && <span className="small dim">{st.name}</span>}
+      </div>
+
+      {editor && (
+        <StyleEditor
+          pin={pin}
+          base={editor.base}
+          editId={editor.editId}
+          sample={{ artists, title, year }}
+          onClose={() => setEditor(null)}
+          onSaved={(saved) => {
+            setEditor(null)
+            setStyle(saved ? saved.id : 's1381')
+          }}
+        />
+      )}
 
       <div className="row" style={{ marginTop: 14 }}>
         <button className="primary" disabled={busy} onClick={save}>Mentés</button>

@@ -1,0 +1,18 @@
+name: Supabase ébren tartás
+
+# 3 naponta lekérdez egy sort, így a projekt sosem számít inaktívnak
+on:
+  schedule:
+    - cron: '0 6 */3 * *'
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Egy sor lekérdezése a songs táblából
+        run: |
+          curl -sf "${{ secrets.SUPABASE_URL }}/rest/v1/songs?select=card_number&limit=1" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+            > /dev/null && echo "Supabase pingelve, ébren van."
