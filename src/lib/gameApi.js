@@ -264,3 +264,24 @@ export async function setBonus(placement, team, field, value) {
     .eq('id', team.id)
   if (e2) throw e2
 }
+
+// Mesteri bírálat: a cím/előadó bónusz végleges eldöntése (a gép javaslata felülírható).
+// decision: { title_correct?: bool, artist_correct?: bool } – csak amire volt tipp
+export async function reviewBonus(placement, team, decision) {
+  const upd = { bonus_reviewed: true }
+  let delta = 0
+  for (const f of ['title_correct', 'artist_correct']) {
+    if (decision[f] === undefined || decision[f] === placement[f]) continue
+    upd[f] = decision[f]
+    delta += decision[f] ? 1 : -1
+  }
+  const { error: e1 } = await supabase.from('placements').update(upd).eq('id', placement.id)
+  if (e1) throw e1
+  if (delta && team) {
+    const { error: e2 } = await supabase
+      .from('teams')
+      .update({ bonus_points: Math.max(0, team.bonus_points + delta) })
+      .eq('id', team.id)
+    if (e2) throw e2
+  }
+}

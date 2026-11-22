@@ -2,7 +2,7 @@ import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 
 import { supabase } from '../lib/supabase.js'
 import { myTeam } from '../lib/session.js'
 import {
-  drawForTurn, playCard, setBonus, setPendingSlot, revealPlacement, nextTurn, setStatus, getSong,
+  drawForTurn, playCard, reviewBonus, setPendingSlot, revealPlacement, nextTurn, setStatus, getSong,
 } from '../lib/gameApi.js'
 import { titleMatches, artistMatches } from '../lib/match.js'
 import { useCardStyles } from '../lib/cardStyles.js'
@@ -292,6 +292,15 @@ export default function TableView({ game, teams, placements, admin }) {
   const [scanning, setScanning] = useState(false)
   const [confirmEnd, setConfirmEnd] = useState(false)
   const [zoomCards, setZoomCards] = useState(null)
+  const [reviewOpen, setReviewOpen] = useState(false)
+  const guessRows = useMemo(
+    () =>
+      placements
+        .filter((p) => p.title_guess || p.artist_guess)
+        .sort((a, b) => (a.bonus_reviewed === b.bonus_reviewed ? new Date(b.created_at) - new Date(a.created_at) : a.bonus_reviewed ? 1 : -1)),
+    [placements]
+  )
+  const pendingCount = guessRows.filter((p) => !p.bonus_reviewed).length
   const [remoteActive, setRemoteActive] = useState(false)
 
   // A távoli (másik eszközön húzott) lap pozicionálása a sáv tartalmi koordinátáiból
@@ -640,22 +649,18 @@ export default function TableView({ game, teams, placements, admin }) {
       {revealed && (
         <div className={`result-banner ${revealedRow.correct ? 'good' : 'bad'}`}>
           {revealedRow.correct ? 'Jó helyre került! +1 lap' : 'Nem talált – ez a lap kiesik'}
-          <BonusLine
-            label="Cím"
-            field="title_correct"
-            guess={revealedRow.title_guess}
-            row={revealedRow}
-            team={teams.find((t) => t.id === revealedRow.team_id)}
-            admin={admin}
-          />
-          <BonusLine
-            label="Előadó"
-            field="artist_correct"
-            guess={revealedRow.artist_guess}
-            row={revealedRow}
-            team={teams.find((t) => t.id === revealedRow.team_id)}
-            admin={admin}
-          />
+          {admin ? (
+            <GuessReview
+              row={revealedRow}
+              team={teams.find((t) => t.id === revealedRow.team_id)}
+              inline
+            />
+          ) : (
+            <>
+              <BonusLine label="Cím" field="title_correct" guess={revealedRow.title_guess} row={revealedRow} />
+              <BonusLine label="Előadó" field="artist_correct" guess={revealedRow.artist_guess} row={revealedRow} />
+            </>
+          )}
         </div>
       )}
 
@@ -679,6 +684,31 @@ export default function TableView({ game, teams, placements, admin }) {
           <button className="danger" onClick={() => setConfirmEnd(true)}>
             Vége
           </button>
+        </div>
+      )}
+
+
+      {admin && guessRows.length > 0 && (
+        <button className={`review-pill ${pendingCount ? 'has' : ''}`} onClick={() => setReviewOpen(true)}>
+          📝 Tippek{pendingCount ? <span className="badge">{pendingCount}</span> : ' ✓'}
+        </button>
+      )}
+      {admin && reviewOpen && (
+        <div className="modal-overlay" onClick={() => setReviewOpen(false)}>
+          <div className="modal review-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="spread">
+              <h2 style={{ margin: 0 }}>Tippek bírálata</h2>
+              <button className="ghost" onClick={() => setReviewOpen(false)}>Bezár</button>
+            </div>
+            <p className="dim small" style={{ margin: '6px 0 12px' }}>
+              A gép javaslata már be van számolva – itt véglegesíted vagy felülírod.
+            </p>
+            <div className="stack">
+              {guessRows.map((p) => (
+                <GuessReview key={p.id} row={p} team={teams.find((t) => t.id === p.team_id)} />
+              ))}
+            </div>
+          </div>
         </div>
       )}
 
@@ -774,34 +804,84 @@ function AdminPlayer({ cardNumber }) {
   return <PlayerPanel song={song} />
 }
 
-// Bónusz-sor: a csapat tippje + az ítélet; a mester egy koppintással felülbírálhatja
-function BonusLine({ label, field, guess, row, team, admin }) {
+// Bónusz-sor a játékosoknak: a tippjük, az ítélet és hogy a mester elbírálta-e már
+function BonusLine({ label, field, guess, row }) {
   const ok = row[field]
-  const [busy, setBusy] = useState(false)
-  const toggle = async () => {
-    if (!team || busy) return
-    setBusy(true)
-    try {
-      await setBonus(row, team, field, !ok)
-    } finally {
-      setBusy(false)
-    }
-  }
+  const waiting = guess && row.bonus_reviewed === false
   return (
     <div className="bonus-line">
       <span className="dim">{label}:</span>
       <span className="bonus-guess">{guess ? `„${guess}”` : '—'}</span>
-      {admin ? (
-        <button
-          className={`bonus-toggle ${ok ? 'on' : ''}`}
-          disabled={busy}
-          onClick={toggle}
-          title="Játékmesteri felülbírálás"
-        >
-          {ok ? '+1 ✓' : 'nincs pont'}
-        </button>
-      ) : (
-        <span className={`bonus-verdict ${ok ? 'on' : ''}`}>{ok ? '+1 pont ✓' : 'nincs pont'}</span>
+      <span className={`bonus-verdict ${ok ? 'on' : ''}`}>
+        {ok ? '+1 pont ✓' : 'nincs pont'}
+        {waiting && <span className="dim"> · a mester bírálja…</span>}
+      </span>
+    </div>
+  )
+}
+
+// Mesteri bírálókártya: tipp vs. helyes válasz, a gép javaslata, Jár / Nem jár
+function GuessReview({ row, team, inline }) {
+  const fields = [
+    { f: 'title_correct', label: 'Cím', guess: row.title_guess, answer: row.songs?.title },
+    { f: 'artist_correct', label: 'Előadó', guess: row.artist_guess, answer: row.songs?.artists },
+  ]
+  const initial = () => Object.fromEntries(fields.filter((x) => x.guess).map((x) => [x.f, !!row[x.f]]))
+  const [pick, setPick] = useState(initial)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  useEffect(() => { setPick(initial()) }, [row.title_correct, row.artist_correct, row.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const changed = fields.some((x) => x.guess && pick[x.f] !== !!row[x.f])
+  const reviewed = row.bonus_reviewed === true
+  const save = async () => {
+    setBusy(true)
+    setErr('')
+    try {
+      await reviewBonus(row, team, pick)
+    } catch (e) {
+      setErr(String(e.message || e).includes('bonus_reviewed') ? 'Futtasd le a schema_phase9.sql-t!' : 'Mentési hiba, próbáld újra.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className={`review-card ${inline ? 'inline' : ''} ${reviewed ? 'done' : ''}`}>
+      {!inline && (
+        <div className="review-head">
+          <span className="dot" style={{ background: team?.color }} />
+          <b>{team?.name}</b>
+          <span className="dim small">#{row.card_number}</span>
+          <span className="review-state">{reviewed ? 'elbírálva ✓' : 'bírálatra vár'}</span>
+        </div>
+      )}
+      {fields.map((x) => (
+        <div className="review-row" key={x.f}>
+          <div className="review-text">
+            <span className="dim small">{x.label}</span>
+            <span className="review-guess">{x.guess ? `„${x.guess}”` : <i className="dim">nem tippeltek</i>}</span>
+            <span className="small dim">helyes: <b className="answer">{x.answer}</b></span>
+          </div>
+          {x.guess && (
+            <div className="verdict-seg">
+              <button className={pick[x.f] ? 'on yes' : ''} onClick={() => setPick((p) => ({ ...p, [x.f]: true }))}>
+                ✓ Jár{row[x.f] && !reviewed ? <small> gép</small> : null}
+              </button>
+              <button className={!pick[x.f] ? 'on no' : ''} onClick={() => setPick((p) => ({ ...p, [x.f]: false }))}>
+                ✗ Nem jár{!row[x.f] && !reviewed ? <small> gép</small> : null}
+              </button>
+            </div>
+          )}
+        </div>
+      ))}
+      {(row.title_guess || row.artist_guess) && (
+        <div className="row" style={{ marginTop: 10 }}>
+          <button className="primary tiny" disabled={busy || (reviewed && !changed)} onClick={save}>
+            {reviewed ? (changed ? 'Módosítás mentése' : 'Elbírálva ✓') : 'Elfogadom'}
+          </button>
+          {err && <span className="error small">{err}</span>}
+        </div>
       )}
     </div>
   )
