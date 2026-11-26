@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import FitText from '../lib/FitText.jsx'
 import { supabase } from '../lib/supabase.js'
 import {
   DIRECTIONS, RADIAL_ORIGINS, specToBg, bgToSpec, autoTextColor, putStyle, dropStyle,
@@ -99,9 +100,9 @@ export default function StyleEditor({ pin, base, editId, sample, onClose, onSave
           {/* élő előnézet */}
           <div className="se-preview">
             <div className="card card-front se-card" style={{ background: bg, color: spec.text }}>
-              <div className="artist">{sample?.artists || 'Előadó'}</div>
+              <FitText className="artist" text={sample?.artists || 'Előadó'} />
               <div className="year">{sample?.year || '1999'}</div>
-              <div className="title">{sample?.title || 'Cím'}</div>
+              <FitText className="title" text={sample?.title || 'Cím'} />
             </div>
           </div>
 

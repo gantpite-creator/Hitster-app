@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import FitText from '../lib/FitText.jsx'
 import { supabase } from '../lib/supabase.js'
 import { myTeam } from '../lib/session.js'
 import {
@@ -127,9 +128,9 @@ function FrontFace({ song, styles }) {
       className="card card-front"
       style={{ background: st?.bg ?? 'var(--cyan)', color: st?.text_color ?? '#0b0b0d' }}
     >
-      <div className="artist">{song.artists}</div>
+      <FitText className="artist" text={song.artists} />
       <div className="year">{song.year}</div>
-      <div className="title">{song.title}</div>
+      <FitText className="title" text={song.title} />
     </div>
   )
 }

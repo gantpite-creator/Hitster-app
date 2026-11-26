@@ -228,10 +228,13 @@ input.code-input {
   font-weight: 700;
   font-size: 0.62rem;
   line-height: 1.15;
-  max-height: 2.3em;
+  max-height: 34%;          /* a kártya magasságához mérve: a FitText ebbe zsugorít */
+  width: 100%;
   overflow: hidden;
-  word-break: break-word;
+  overflow-wrap: anywhere;
+  flex-shrink: 0;
 }
+.card-front .year { flex-shrink: 0; }
 .card-front .year {
   font-family: var(--font-display);
   font-size: 1.45rem;
@@ -447,6 +450,11 @@ input.code-input {
   font-weight: 700;
   font-size: 0.42cm;
   line-height: 1.2;
+  max-height: 34%;
+  width: 100%;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  flex-shrink: 0;
 }
 .print-card .p-year {
   font-family: var(--font-display);
@@ -710,7 +718,6 @@ button:disabled::after { opacity: 0; }
 .zoom-grid .card-front .artist,
 .zoom-grid .card-front .title {
   font-size: 1rem;
-  max-height: 3.6em;
 }
 .zoom-grid .card-front .year { font-size: 3.1rem; }
 @keyframes zoomPop {
@@ -883,7 +890,7 @@ button:disabled::after { opacity: 0; }
 .se-body { display: flex; gap: 22px; margin-top: 14px; flex-wrap: wrap; }
 .se-preview { flex: 0 0 auto; display: grid; place-items: center; padding: 6px 0; }
 .se-card.card-front { width: 168px; height: 210px; padding: 16px 10px; border-radius: 16px; transition: background 0.25s ease, color 0.25s ease; }
-.se-card .artist, .se-card .title { font-size: 0.86rem; max-height: 3.4em; }
+.se-card .artist, .se-card .title { font-size: 0.86rem; }
 .se-card .year { font-size: 2.4rem; }
 .se-controls { flex: 1 1 300px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .se-label { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink-dim); margin-top: 8px; }
@@ -978,3 +985,20 @@ button.tiny { padding: 7px 11px; font-size: 0.8rem; border-radius: 9px; }
   .lib-stats { grid-template-columns: 1fr 1fr; }
   .lib-tile.wide { grid-column: 1 / -1; order: 3; }
 }
+
+/* ================= HOSSZÚ SZÖVEGEK ================= */
+textarea.grow-field {
+  font-family: var(--font-body);
+  font-size: 1.05rem;
+  width: 100%;
+  padding: 13px 14px;
+  border-radius: 12px;
+  border: 1.5px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  outline: none;
+  resize: none;
+  overflow: hidden;
+  line-height: 1.35;
+}
+textarea.grow-field:focus { border-color: var(--cyan); }

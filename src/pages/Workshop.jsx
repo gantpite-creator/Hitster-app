@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import FitText from '../lib/FitText.jsx'
 import QRCode from 'qrcode'
 import { supabase } from '../lib/supabase.js'
 import { useCardStyles } from '../lib/cardStyles.js'
@@ -62,6 +63,28 @@ export default function Workshop() {
 }
 
 const PAGE = 100
+
+// Több sorra törő szövegmező, ami a tartalommal együtt nő (sortörést nem enged)
+function GrowField({ value, onChange, placeholder }) {
+  const ref = useRef(null)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = el.scrollHeight + 2 + 'px'
+  }, [value])
+  return (
+    <textarea
+      ref={ref}
+      rows={1}
+      className="grow-field"
+      placeholder={placeholder}
+      value={value}
+      onChange={(e) => onChange(e.target.value.replace(/\s*\n\s*/g, ' '))}
+      onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()}
+    />
+  )
+}
 
 // Az utoljára mentett zene stílusa: ezzel indul a következő új zene
 const LAST_STYLE_KEY = 'hitster-utolso-stilus'
@@ -351,10 +374,8 @@ function SongForm({ pin, song, styles, fallbackStyle, onClose, onSaved, onPrint 
 
       <div className="row" style={{ alignItems: 'flex-start', marginTop: 12 }}>
         <div className="stack" style={{ flex: 1 }}>
-          <input type="text" placeholder="Előadók (vesszővel)" value={artists}
-            onChange={(e) => setArtists(e.target.value)} />
-          <input type="text" placeholder="Cím" value={title}
-            onChange={(e) => setTitle(e.target.value)} />
+          <GrowField placeholder="Előadók (vesszővel)" value={artists} onChange={setArtists} />
+          <GrowField placeholder="Cím" value={title} onChange={setTitle} />
           <input type="number" placeholder="Év" value={year}
             onChange={(e) => setYear(e.target.value)} />
           <input type="text" placeholder="YouTube / SoundCloud link" value={url}
@@ -364,9 +385,9 @@ function SongForm({ pin, song, styles, fallbackStyle, onClose, onSaved, onPrint 
         <div className="card card-front" style={{
           background: st?.bg ?? 'var(--cyan)', color: st?.text_color ?? '#0b0b0d',
         }}>
-          <div className="artist">{artists || 'Előadó'}</div>
+          <FitText className="artist" text={artists || 'Előadó'} />
           <div className="year">{year || '20??'}</div>
-          <div className="title">{title || 'Cím'}</div>
+          <FitText className="title" text={title || 'Cím'} />
         </div>
       </div>
 
@@ -440,9 +461,9 @@ function PrintSheet({ song, styles, onClose }) {
           <div className="print-card" style={{
             background: st?.bg ?? 'var(--cyan)', color: st?.text_color ?? '#0b0b0d',
           }}>
-            <div className="p-artist">{song.artists}</div>
+            <FitText className="p-artist" text={song.artists} />
             <div className="p-year">{song.year}</div>
-            <div className="p-title">{song.title}</div>
+            <FitText className="p-title" text={song.title} />
           </div>
           <div className="print-card back">
             <svg viewBox="0 0 100 100" className="rings" aria-hidden="true">
