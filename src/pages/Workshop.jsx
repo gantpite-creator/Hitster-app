@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import QRCode from 'qrcode'
 import { supabase } from '../lib/supabase.js'
 import { useCardStyles } from '../lib/cardStyles.js'
 import StyleEditor from './StyleEditor.jsx'
+import { strip } from '../lib/match.js'
 
 const PIN_KEY = 'hitster-muhely-pin'
 
@@ -60,22 +61,99 @@ export default function Workshop() {
   return <WorkshopInner pin={pin} />
 }
 
+const PAGE = 100
+
+// Az összes zene betöltése (a Supabase egyszerre max. 1000 sort ad, ezért lapozunk)
+async function fetchAllSongs() {
+  const all = []
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase
+      .from('songs')
+      .select()
+      .order('card_number')
+      .range(from, from + 999)
+    if (error) throw error
+    all.push(...data)
+    if (data.length < 1000) break
+  }
+  return all
+}
+
+const SORTS = {
+  num: { label: 'Sorszám ↑', fn: (a, b) => a.card_number - b.card_number },
+  numDesc: { label: 'Legújabbak elöl', fn: (a, b) => b.card_number - a.card_number },
+  year: { label: 'Évszám', fn: (a, b) => a.year - b.year || a.card_number - b.card_number },
+  artist: { label: 'Előadó', fn: (a, b) => a.artists.localeCompare(b.artists, 'hu') },
+  title: { label: 'Cím', fn: (a, b) => a.title.localeCompare(b.title, 'hu') },
+}
+
+function downloadCsv(rows) {
+  const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`
+  const lines = [['Sorszám', 'Előadók', 'Év', 'Cím', 'Link', 'Stílus'].map(esc).join(';')]
+  for (const s of rows) lines.push([s.card_number, s.artists, s.year, s.title, s.url, s.style].map(esc).join(';'))
+  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' })
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = `zenetar-${new Date().toISOString().slice(0, 10)}.csv`
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000)
+}
+
 function WorkshopInner({ pin }) {
   const styles = useCardStyles()
+  const [songs, setSongs] = useState(null)       // null = töltés
+  const [loadErr, setLoadErr] = useState('')
   const [term, setTerm] = useState('')
-  const [results, setResults] = useState([])
+  const [sort, setSort] = useState('num')
+  const [shown, setShown] = useState(PAGE)
   const [editing, setEditing] = useState(null)   // null = nincs form; {} = új zene
   const [printSong, setPrintSong] = useState(null)
   const [standaloneEditor, setStandaloneEditor] = useState(false)
 
-  const search = async () => {
-    const t = term.trim().replace(/,/g, ' ')
-    if (!t) return setResults([])
-    let q = supabase.from('songs').select().limit(25).order('card_number')
-    if (/^\d+$/.test(t)) q = q.eq('card_number', Number(t))
-    else q = q.or(`title.ilike.%${t}%,artists.ilike.%${t}%`)
-    const { data } = await q
-    setResults(data ?? [])
+  const load = async () => {
+    setLoadErr('')
+    try {
+      setSongs(await fetchAllSongs())
+    } catch {
+      setLoadErr('Nem sikerült betölteni a zenéket. Ha a Supabase szüneteltetve van, a dashboardon nyomd meg a Restore-t.')
+    }
+  }
+  useEffect(() => { load() }, [])
+  useEffect(() => setShown(PAGE), [term, sort])
+
+  const stats = useMemo(() => {
+    if (!songs?.length) return null
+    const last = songs.reduce((m, s) => (s.card_number > m.card_number ? s : m), songs[0])
+    const years = songs.map((s) => s.year)
+    return {
+      total: songs.length,
+      last,
+      minYear: Math.min(...years),
+      maxYear: Math.max(...years),
+      soundcloud: songs.filter((s) => s.source_type === 'soundcloud').length,
+    }
+  }, [songs])
+
+  const filtered = useMemo(() => {
+    if (!songs) return []
+    const t = strip(term.trim())
+    let list = songs
+    if (/^\d+$/.test(t)) {
+      const n = Number(t)
+      list = songs.filter((s) => s.card_number === n || s.year === n)
+    } else if (t) {
+      const words = t.split(/[\s,]+/).filter(Boolean)
+      list = songs.filter((s) => {
+        const hay = strip(`${s.artists} ${s.title}`)
+        return words.every((w) => hay.includes(w))
+      })
+    }
+    return [...list].sort(SORTS[sort].fn)
+  }, [songs, term, sort])
+
+  const openSong = (s) => {
+    setEditing(s)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   return (
@@ -84,34 +162,27 @@ function WorkshopInner({ pin }) {
         <h1>Műhely</h1>
         <div className="row">
           <button className="ghost" onClick={() => setStandaloneEditor(true)}>🎨 Új színvilág</button>
-          <button className="primary" onClick={() => setEditing({})}>+ Új zene</button>
+          <button className="primary" onClick={() => openSong({})}>+ Új zene</button>
         </div>
       </div>
-      <p className="dim small" style={{ marginTop: 0 }}>
-        Keresés cím, előadó vagy sorszám alapján, aztán koppints a találatra.
-      </p>
 
-      <div className="row" style={{ marginBottom: 14 }}>
-        <input
-          type="text"
-          placeholder="pl. Papa · Azariah · 612"
-          value={term}
-          onChange={(e) => setTerm(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && search()}
-        />
-        <button className="ghost" onClick={search}>Keresés</button>
-      </div>
-
-      <div className="stack">
-        {results.map((s) => (
-          <button key={s.card_number} className="result-row" onClick={() => setEditing(s)}>
-            <b>#{s.card_number}</b>
-            <span style={{ flex: 1, textAlign: 'left' }}>
-              {s.artists} – {s.title}
-            </span>
-            <span className="dim">{s.year}</span>
-          </button>
-        ))}
+      {/* ---- Zenetár összesítő ---- */}
+      <div className="lib-stats">
+        <div className="lib-tile">
+          <span className="lib-label">Összesen</span>
+          <span className="lib-big">{stats ? stats.total.toLocaleString('hu-HU') : '…'}</span>
+          <span className="dim small">zene</span>
+        </div>
+        <div className="lib-tile wide" onClick={() => stats && openSong(stats.last)} role="button">
+          <span className="lib-label">Utolsó lap</span>
+          <span className="lib-big">{stats ? `#${stats.last.card_number}` : '…'}</span>
+          <span className="small lib-last">{stats ? `${stats.last.artists} – ${stats.last.title} (${stats.last.year})` : ''}</span>
+        </div>
+        <div className="lib-tile">
+          <span className="lib-label">Évek</span>
+          <span className="lib-big">{stats ? `${stats.minYear}–${stats.maxYear}` : "…"}</span>
+          <span className="dim small">{stats ? `${stats.soundcloud} SoundCloud` : ''}</span>
+        </div>
       </div>
 
       {editing !== null && (
@@ -123,14 +194,59 @@ function WorkshopInner({ pin }) {
           onClose={() => setEditing(null)}
           onSaved={(saved) => {
             setEditing(saved)
-            setResults((r) =>
-              r.some((x) => x.card_number === saved.card_number)
-                ? r.map((x) => (x.card_number === saved.card_number ? saved : x))
-                : r
-            )
+            setSongs((all) => {
+              const rest = (all ?? []).filter((x) => x.card_number !== saved.card_number)
+              return [...rest, { ...(all ?? []).find((x) => x.card_number === saved.card_number), ...saved }]
+            })
           }}
           onPrint={(s) => setPrintSong(s)}
         />
+      )}
+
+      {/* ---- teljes lista ---- */}
+      <h2 style={{ margin: '20px 0 8px' }}>Zenetár</h2>
+      <div className="row" style={{ marginBottom: 8 }}>
+        <input
+          type="text"
+          placeholder="Szűrés: előadó, cím, sorszám vagy évszám"
+          value={term}
+          onChange={(e) => setTerm(e.target.value)}
+        />
+      </div>
+      <div className="row lib-tools">
+        <select value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Rendezés">
+          {Object.entries(SORTS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+        </select>
+        <span className="dim small" style={{ flex: 1 }}>
+          {songs ? `${filtered.length.toLocaleString('hu-HU')} találat` : 'Betöltés…'}
+        </span>
+        <button className="ghost tiny" disabled={!songs} onClick={() => downloadCsv(filtered)} title="Excelben megnyitható">
+          ⬇ CSV
+        </button>
+        <button className="ghost tiny" onClick={load} title="Újratöltés">↻</button>
+      </div>
+      {loadErr && <p className="error small">{loadErr}</p>}
+
+      <div className="stack">
+        {filtered.slice(0, shown).map((s) => (
+          <button key={s.card_number} className="result-row" onClick={() => openSong(s)}>
+            <span
+              className="lib-swatch"
+              style={{ background: styles?.[s.style]?.bg ?? 'var(--cyan)' }}
+              aria-hidden="true"
+            />
+            <b className="lib-num">#{s.card_number}</b>
+            <span style={{ flex: 1, textAlign: 'left', minWidth: 0 }}>
+              {s.artists} – {s.title}
+            </span>
+            <span className="dim">{s.year}</span>
+          </button>
+        ))}
+      </div>
+      {filtered.length > shown && (
+        <button className="ghost wide" style={{ marginTop: 10 }} onClick={() => setShown((n) => n + PAGE * 3)}>
+          Továbbiak ({(filtered.length - shown).toLocaleString('hu-HU')} még)
+        </button>
       )}
 
       {printSong && (

@@ -955,3 +955,26 @@ button.tiny { padding: 7px 11px; font-size: 0.8rem; border-radius: 9px; }
   border-radius: 999px; background: var(--ring-orange); color: #0b0b0d; font-size: 0.75rem;
 }
 .modal.review-modal { max-width: 560px; max-height: calc(100vh - 40px); overflow-y: auto; }
+
+/* ================= ZENETÁR ================= */
+.lib-stats { display: grid; grid-template-columns: 1fr 1.6fr 1fr; gap: 8px; margin: 6px 0 14px; }
+.lib-tile {
+  display: flex; flex-direction: column; gap: 2px; min-width: 0;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px;
+}
+.lib-tile.wide { cursor: pointer; }
+.lib-tile.wide:hover { border-color: var(--cyan); }
+.lib-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink-dim); }
+.lib-big { font-family: var(--font-display); font-size: 1.35rem; line-height: 1.15; }
+.lib-last { color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lib-tools { margin-bottom: 10px; }
+.lib-tools select {
+  font-family: var(--font-body); font-size: 0.9rem; padding: 8px 10px; border-radius: 10px;
+  background: var(--surface); color: var(--ink); border: 1.5px solid var(--line);
+}
+.lib-swatch { width: 14px; height: 18px; border-radius: 4px; flex-shrink: 0; }
+.lib-num { min-width: 52px; text-align: left; }
+@media (max-width: 420px) {
+  .lib-stats { grid-template-columns: 1fr 1fr; }
+  .lib-tile.wide { grid-column: 1 / -1; order: 3; }
+}
