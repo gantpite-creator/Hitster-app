@@ -63,6 +63,15 @@ export default function Workshop() {
 
 const PAGE = 100
 
+// Az utoljára mentett zene stílusa: ezzel indul a következő új zene
+const LAST_STYLE_KEY = 'hitster-utolso-stilus'
+const getLastStyle = () => {
+  try { return localStorage.getItem(LAST_STYLE_KEY) } catch { return null }
+}
+const rememberStyle = (id) => {
+  try { localStorage.setItem(LAST_STYLE_KEY, id) } catch { /* privát mód: nem baj */ }
+}
+
 // Az összes zene betöltése (a Supabase egyszerre max. 1000 sort ad, ezért lapozunk)
 async function fetchAllSongs() {
   const all = []
@@ -188,6 +197,7 @@ function WorkshopInner({ pin }) {
       {editing !== null && (
         <SongForm
           key={editing.card_number ?? 'new'}
+          fallbackStyle={stats?.last.style}
           pin={pin}
           song={editing.card_number ? editing : null}
           styles={styles}
@@ -264,12 +274,17 @@ function WorkshopInner({ pin }) {
   )
 }
 
-function SongForm({ pin, song, styles, onClose, onSaved, onPrint }) {
+function SongForm({ pin, song, styles, fallbackStyle, onClose, onSaved, onPrint }) {
   const [artists, setArtists] = useState(song?.artists ?? '')
   const [title, setTitle] = useState(song?.title ?? '')
   const [year, setYear] = useState(song?.year ?? '')
   const [url, setUrl] = useState(song?.url ?? '')
-  const [style, setStyle] = useState(song?.style ?? 's1381')
+  const defaultStyle = () => getLastStyle() ?? fallbackStyle ?? 's1381'
+  const [style, setStyle] = useState(() => song?.style ?? defaultStyle())
+  // ha a megjegyzett stílust időközben törölték, a legutolsó lapéra állunk vissza
+  useEffect(() => {
+    if (!song && styles && !styles[style]) setStyle(fallbackStyle && styles[fallbackStyle] ? fallbackStyle : 's1381')
+  }, [styles]) // eslint-disable-line react-hooks/exhaustive-deps
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
 
@@ -316,6 +331,7 @@ function SongForm({ pin, song, styles, onClose, onSaved, onPrint }) {
         source_type: url.includes('soundcloud') ? 'soundcloud' : 'youtube',
       }
       setMsg(`Elmentve: #${data} ✓`)
+      rememberStyle(style)
       onSaved(saved)
     } catch (e) {
       setMsg(e.message?.includes('PIN') ? 'Hibás PIN – lépj be újra.' : 'Mentési hiba: ' + e.message)
@@ -390,7 +406,7 @@ function SongForm({ pin, song, styles, onClose, onSaved, onPrint }) {
           onClose={() => setEditor(null)}
           onSaved={(saved) => {
             setEditor(null)
-            setStyle(saved ? saved.id : 's1381')
+            setStyle(saved ? saved.id : fallbackStyle ?? 's1381')
           }}
         />
       )}
