@@ -1,0 +1,27 @@
+name: Uj zenek linkellenorzese (ideiglenes)
+on:
+  push:
+    branches: [link-ellenorzes-uj]
+    paths: ['link-check/new.mjs']
+permissions:
+  contents: write
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: timeout 420 node link-check/new.mjs || true
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      - if: always()
+        run: |
+          git config user.name "link-check"
+          git config user.email "link-check@users.noreply.github.com"
+          git add link-check/new-result.json || exit 0
+          git commit -m "Uj zenek linkellenorzesenek eredmenye" || exit 0
+          git push
